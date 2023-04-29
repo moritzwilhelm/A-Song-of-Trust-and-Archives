@@ -12,23 +12,24 @@ WORKERS = 8
 TABLE_NAME = 'live_data'
 
 
-def worker(id_, url):
-    success, data = crawl(url)
+def worker(urls):
     with psycopg2.connect(host=DB_HOST, port=DB_PORT, database=DB_NAME, user=DB_USER, password=DB_PWD) as connection:
         connection.autocommit = True
         with connection.cursor() as cursor:
-            if success:
-                cursor.execute(f"""
-                    INSERT INTO {TABLE_NAME} 
-                    (tranco_id, domain, start_url, end_url, headers, duration, content_hash, status_code) 
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                """, (id_, url.split('.', 1)[1], url, *data))
-            else:
-                cursor.execute(f"""
-                    INSERT INTO {TABLE_NAME} 
-                    (tranco_id, domain, start_url, end_url) 
-                    VALUES (%s, %s, %s, %s)
-                """, (id_, url.split('.', 1)[1], url, data))
+            for tranco_id, url in urls:
+                success, data = crawl(url)
+                if success:
+                    cursor.execute(f"""
+                        INSERT INTO {TABLE_NAME} 
+                        (tranco_id, domain, start_url, end_url, headers, duration, content_hash, status_code) 
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (tranco_id, url.split('.', 1)[1], url, *data))
+                else:
+                    cursor.execute(f"""
+                        INSERT INTO {TABLE_NAME} 
+                        (tranco_id, domain, start_url, end_url) 
+                        VALUES (%s, %s, %s, %s)
+                    """, (tranco_id, url.split('.', 1)[1], url, data))
 
 
 def collect_data(tranco_file):
@@ -37,18 +38,20 @@ def collect_data(tranco_file):
     urls = []
     with open(tranco_file) as file:
         for line in file:
-            id_, domain = line.strip().split(',')
+            tranco_id, domain = line.strip().split(',')
             url = f"{PREFIX}{domain}"
             if url not in worked_urls:
-                urls.append((id_, url))
+                urls.append((tranco_id, url))
+
+    chunks = [urls[i:i + len(urls) // WORKERS] for i in range(0, len(urls), len(urls) // WORKERS)]
 
     with Pool(WORKERS) as p:
-        p.starmap(worker, urls)
+        p.map(worker, chunks)
 
 
 def main():
     setup(TABLE_NAME)
-    collect_data(f'{Path(__file__).parent.resolve()}/tranco_20k.csv')
+    collect_data(Path(__file__).parent.resolve().joinpath('tranco_20k.csv'))
 
 
 if __name__ == '__main__':

@@ -11,7 +11,7 @@ from data_collection.crawling import setup, reset_failed_crawls, crawl
 
 WORKERS = 8
 
-DATE = "20230501"
+DATE = '20230501'
 TABLE_NAME = f"archive_data_{DATE}"
 ARCHIVE_URL = APIs['archiveorg']
 ARCHIVE_URL_LENGTH = len(ARCHIVE_URL.format(date=DATE, url=f"{PREFIX}"))
@@ -22,7 +22,7 @@ def worker(urls):
         connection.autocommit = True
         with connection.cursor() as cursor:
             session = requests.Session()
-            for id_, url in urls:
+            for tranco_id, url in urls:
                 time.sleep(0.2)
                 success, data = crawl(url, session=session)
                 if success:
@@ -30,13 +30,13 @@ def worker(urls):
                         INSERT INTO {TABLE_NAME} 
                         (tranco_id, domain, start_url, end_url, headers, duration, content_hash, status_code) 
                         VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                    """, (id_, url[ARCHIVE_URL_LENGTH:], url, *data))
+                    """, (tranco_id, url[ARCHIVE_URL_LENGTH:], url, *data))
                 else:
                     cursor.execute(f"""
                         INSERT INTO {TABLE_NAME} 
                         (tranco_id, domain, start_url, end_url) 
                         VALUES (%s, %s, %s, %s)
-                    """, (id_, url[ARCHIVE_URL_LENGTH:], url, data))
+                    """, (tranco_id, url[ARCHIVE_URL_LENGTH:], url, data))
 
 
 def collect_data(tranco_file):
@@ -45,10 +45,10 @@ def collect_data(tranco_file):
     urls = []
     with open(tranco_file) as file:
         for line in file:
-            id_, domain = line.strip().split(',')
+            tranco_id, domain = line.strip().split(',')
             url = ARCHIVE_URL.format(date=DATE, url=f"{PREFIX}{domain}")
             if url not in worked_urls:
-                urls.append((id_, url))
+                urls.append((tranco_id, url))
 
     chunks = [urls[i:i + len(urls) // WORKERS] for i in range(0, len(urls), len(urls) // WORKERS)]
 
@@ -58,7 +58,7 @@ def collect_data(tranco_file):
 
 def main():
     setup(TABLE_NAME)
-    collect_data(f'{Path(__file__).parent.resolve()}/tranco_20k.csv')
+    collect_data(Path(__file__).parent.resolve().joinpath('tranco_20k.csv'))
 
 
 if __name__ == '__main__':

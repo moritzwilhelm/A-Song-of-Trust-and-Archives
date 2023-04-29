@@ -31,7 +31,7 @@ def setup(table_name):
                 );
             """)
 
-            print(f'<<< CREATE INDEX ON {table_name} >>>')
+            print(f"<<< CREATE INDEX ON {table_name} >>>")
             for column in ['tranco_id', 'domain', 'start_url', 'end_url', 'timestamp', 'duration', 'content_hash',
                            'status_code']:
                 cursor.execute(f"CREATE INDEX ON {table_name} ({column})")
@@ -88,7 +88,7 @@ def crawl(url, headers=None, user_agent=USER_AGENT, session=None):
     if not os.path.exists(file_dir):
         os.makedirs(file_dir)
     file_path = os.path.join(file_dir, f"{content_hash}.gz")
-    with gzip.open(file_path, "wb") as fh:
+    with gzip.open(file_path, 'wb') as fh:
         fh.write(content)
 
     # normalize header names
