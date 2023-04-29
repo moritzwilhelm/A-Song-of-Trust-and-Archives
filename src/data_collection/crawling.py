@@ -37,6 +37,17 @@ def setup(table_name):
                 cursor.execute(f"CREATE INDEX ON {table_name} ({column})")
 
 
+def reset_failed_crawls(table_name):
+    with psycopg2.connect(host=DB_HOST, port=DB_PORT, database=DB_NAME, user=DB_USER, password=DB_PWD) as connection:
+        connection.autocommit = True
+        with connection.cursor() as cursor:
+            cursor.execute(
+                f"DELETE FROM {table_name} WHERE timestamp::date = 'today' and status_code IS NULL OR status_code = 429"
+            )
+            cursor.execute(f"SELECT start_url FROM {table_name} WHERE timestamp::date = 'today'")
+            return {x[0] for x in cursor.fetchall()}
+
+
 @contextmanager
 def timeout(seconds):
     def raise_timeout(signum, frame):

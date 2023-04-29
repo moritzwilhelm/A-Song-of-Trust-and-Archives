@@ -5,7 +5,7 @@ import psycopg2
 
 from configs.crawling import PREFIX
 from configs.database import DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PWD
-from crawling import setup, crawl
+from crawling import setup, reset_failed_crawls, crawl
 
 WORKERS = 8
 
@@ -32,12 +32,15 @@ def worker(id_, url):
 
 
 def collect_data(tranco_file):
+    worked_urls = reset_failed_crawls(TABLE_NAME)
+
     urls = []
     with open(tranco_file) as file:
         for line in file:
             id_, domain = line.strip().split(',')
             url = f"{PREFIX}{domain}"
-            urls.append((id_, url))
+            if url not in worked_urls:
+                urls.append((id_, url))
 
     with Pool(WORKERS) as p:
         p.starmap(worker, urls)
