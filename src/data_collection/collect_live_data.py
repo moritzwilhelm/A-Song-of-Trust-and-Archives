@@ -27,8 +27,8 @@ def worker(urls):
                 else:
                     cursor.execute(f"""
                         INSERT INTO {TABLE_NAME} 
-                        (tranco_id, domain, start_url, end_url) 
-                        VALUES (%s, %s, %s, %s)
+                        (tranco_id, domain, start_url, headers) 
+                        VALUES (%s, %s, %s, to_json(%s::text)::jsonb)
                     """, (tranco_id, url.split('.', 1)[1], url, data))
 
 

@@ -17,12 +17,12 @@ def setup(table_name):
     with psycopg2.connect(host=DB_HOST, port=DB_PORT, database=DB_NAME, user=DB_USER, password=DB_PWD) as connection:
         with connection.cursor() as cursor:
             cursor.execute(f"""
-                CREATE TABLE {table_name} (
+                CREATE TABLE IF NOT EXISTS {table_name} (
                     id SERIAL PRIMARY KEY,
                     tranco_id INTEGER,
                     domain VARCHAR(128),
                     start_url VARCHAR(128),
-                    end_url VARCHAR(2048),
+                    end_url VARCHAR(2048) DEFAULT NULL,
                     headers JSONB DEFAULT NULL,
                     timestamp TIMESTAMP DEFAULT NOW(),
                     duration NUMERIC DEFAULT NULL,
