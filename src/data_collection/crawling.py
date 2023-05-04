@@ -22,7 +22,7 @@ def setup(table_name):
                     tranco_id INTEGER,
                     domain VARCHAR(128),
                     start_url VARCHAR(128),
-                    end_url VARCHAR(2048) DEFAULT NULL,
+                    end_url TEXT DEFAULT NULL,
                     headers JSONB DEFAULT NULL,
                     timestamp TIMESTAMP DEFAULT NOW(),
                     duration NUMERIC DEFAULT NULL,
@@ -31,10 +31,9 @@ def setup(table_name):
                 );
             """)
 
-            print(f"<<< CREATE INDEX ON {table_name} >>>")
             for column in ['tranco_id', 'domain', 'start_url', 'end_url', 'timestamp', 'duration', 'content_hash',
                            'status_code']:
-                cursor.execute(f"CREATE INDEX ON {table_name} ({column})")
+                cursor.execute(f"CREATE INDEX IF NOT EXISTS {table_name}_{column}_idx ON {table_name} ({column})")
 
 
 def reset_failed_crawls(table_name):

@@ -2,8 +2,8 @@
 
 source $(dirname "$0")/linux-venv/bin/activate
 cd $(dirname "$0")/src
-echo "START CRAWL"
+echo "<<< START CRAWLING >>>"
 python3 data_collection/collect_archive_data.py
-echo "FINISHED CRAWL"
+echo "<<< FINISHED CRAWLING >>>"
 cd $(dirname "$0")
 deactivate
