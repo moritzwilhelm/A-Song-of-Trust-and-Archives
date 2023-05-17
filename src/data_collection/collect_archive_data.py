@@ -3,10 +3,9 @@ from multiprocessing import Pool
 from pathlib import Path
 
 import requests
-from psycopg2 import connect
 
 from configs.crawling import PREFIX, APIs
-from configs.database import DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PWD
+from configs.database import get_database_cursor
 from data_collection.crawling import setup, reset_failed_crawls, crawl
 
 WORKERS = 8
@@ -19,25 +18,23 @@ ARCHIVE_URL_LENGTH = len(ARCHIVE_URL.format(date=DATE, url=f"{PREFIX}"))
 
 def worker(urls: list[str]) -> None:
     """Crawl all provided `urls` and store the responses in the database."""
-    with connect(host=DB_HOST, port=DB_PORT, database=DB_NAME, user=DB_USER, password=DB_PWD) as connection:
-        connection.autocommit = True
-        with connection.cursor() as cursor:
-            session = requests.Session()
-            for tranco_id, url in urls:
-                time.sleep(0.2)
-                success, data = crawl(url, session=session)
-                if success:
-                    cursor.execute(f"""
-                        INSERT INTO {TABLE_NAME} 
-                        (tranco_id, domain, start_url, end_url, headers, duration, content_hash, status_code) 
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                    """, (tranco_id, url[ARCHIVE_URL_LENGTH:], url, *data))
-                else:
-                    cursor.execute(f"""
-                        INSERT INTO {TABLE_NAME} 
-                        (tranco_id, domain, start_url, headers) 
-                        VALUES (%s, %s, %s, to_json(%s::text)::jsonb)
-                    """, (tranco_id, url[ARCHIVE_URL_LENGTH:], url, data))
+    with get_database_cursor(autocommit=True) as cursor:
+        session = requests.Session()
+        for tranco_id, url in urls:
+            time.sleep(0.2)
+            success, data = crawl(url, session=session)
+            if success:
+                cursor.execute(f"""
+                    INSERT INTO {TABLE_NAME} 
+                    (tranco_id, domain, start_url, end_url, headers, duration, content_hash, status_code) 
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """, (tranco_id, url[ARCHIVE_URL_LENGTH:], url, *data))
+            else:
+                cursor.execute(f"""
+                    INSERT INTO {TABLE_NAME} 
+                    (tranco_id, domain, start_url, headers) 
+                    VALUES (%s, %s, %s, to_json(%s::text)::jsonb)
+                """, (tranco_id, url[ARCHIVE_URL_LENGTH:], url, data))
 
 
 def collect_data(tranco_file: Path) -> None:

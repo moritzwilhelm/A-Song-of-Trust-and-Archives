@@ -4,14 +4,13 @@ from datetime import date as date_type, timedelta, datetime
 from pathlib import Path
 from typing import Callable
 
-from psycopg2 import connect
 from tqdm import tqdm
 
 from analysis.analysis_enums import Status
 from analysis.analysis_utils import get_tranco_urls, parse_origin, get_aggregated_date
 from analysis.header_utils import normalize_headers, classify_headers
 from configs.analysis import RELEVANT_HEADERS
-from configs.database import DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PWD
+from configs.database import get_database_cursor
 from configs.utils import join_with_json_path
 from data_collection.collect_archive_data import ARCHIVE_URL, DATE, TABLE_NAME as ARCHIVE_TABLE_NAME
 from data_collection.collect_live_data import TABLE_NAME as LIVE_TABLE_NAME
@@ -25,15 +24,14 @@ def compute_live_data_stability(urls: list[str],
     assert start <= end
 
     live_data = defaultdict(dict)
-    with connect(host=DB_HOST, port=DB_PORT, database=DB_NAME, user=DB_USER, password=DB_PWD) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(f"""
-                SELECT start_url, timestamp::date, headers, end_url 
-                FROM {LIVE_TABLE_NAME}
-                WHERE status_code=200 AND timestamp::date BETWEEN %s AND %s
-            """, (start, end))
-            for start_url, date, *data in cursor.fetchall():
-                live_data[start_url][date] = data
+    with get_database_cursor() as cursor:
+        cursor.execute(f"""
+            SELECT start_url, timestamp::date, headers, end_url 
+            FROM {LIVE_TABLE_NAME}
+            WHERE status_code=200 AND timestamp::date BETWEEN %s AND %s
+        """, (start, end))
+        for start_url, date, *data in cursor.fetchall():
+            live_data[start_url][date] = data
 
     result = defaultdict(lambda: defaultdict(dict))
     for url in tqdm(urls):
@@ -65,15 +63,14 @@ def compute_archive_snapshot_stability(urls: list[str],
     assert start <= end
 
     archive_data = defaultdict(dict)
-    with connect(host=DB_HOST, port=DB_PORT, database=DB_NAME, user=DB_USER, password=DB_PWD) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(f"""
-                SELECT start_url, timestamp::date, end_url, substring(split_part(end_url, '/', 5) FROM 1 FOR 8), status_code 
-                FROM {ARCHIVE_TABLE_NAME}
-                WHERE status_code IN (200, 404) AND timestamp::date BETWEEN %s AND %s
-            """, (start, end))
-            for start_url, date, *data in cursor.fetchall():
-                archive_data[start_url][date] = data
+    with get_database_cursor() as cursor:
+        cursor.execute(f"""
+            SELECT start_url, timestamp::date, end_url, substring(split_part(end_url, '/', 5) FROM 1 FOR 8), status_code 
+            FROM {ARCHIVE_TABLE_NAME}
+            WHERE status_code IN (200, 404) AND timestamp::date BETWEEN %s AND %s
+        """, (start, end))
+        for start_url, date, *data in cursor.fetchall():
+            archive_data[start_url][date] = data
 
     result = defaultdict(dict)
     for url in tqdm(urls):

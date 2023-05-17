@@ -7,47 +7,43 @@ from hashlib import sha256
 from time import time_ns
 from types import FrameType
 
-from psycopg2 import connect
 from requests import Session, RequestException
 
 from configs.crawling import USER_AGENT
-from configs.database import DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PWD, STORAGE
+from configs.database import STORAGE, get_database_cursor
 
 
 def setup(table_name: str) -> None:
     """Create crawling database table and create relevant indexes."""
-    with connect(host=DB_HOST, port=DB_PORT, database=DB_NAME, user=DB_USER, password=DB_PWD) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(f"""
-                CREATE TABLE IF NOT EXISTS {table_name} (
-                    id SERIAL PRIMARY KEY,
-                    tranco_id INTEGER,
-                    domain VARCHAR(128),
-                    start_url VARCHAR(128),
-                    end_url TEXT DEFAULT NULL,
-                    headers JSONB DEFAULT NULL,
-                    timestamp TIMESTAMP DEFAULT NOW(),
-                    duration NUMERIC DEFAULT NULL,
-                    content_hash VARCHAR(64) DEFAULT NULL,
-                    status_code INT DEFAULT NULL
-                );
-            """)
+    with get_database_cursor() as cursor:
+        cursor.execute(f"""
+            CREATE TABLE IF NOT EXISTS {table_name} (
+                id SERIAL PRIMARY KEY,
+                tranco_id INTEGER,
+                domain VARCHAR(128),
+                start_url VARCHAR(128),
+                end_url TEXT DEFAULT NULL,
+                headers JSONB DEFAULT NULL,
+                timestamp TIMESTAMP DEFAULT NOW(),
+                duration NUMERIC DEFAULT NULL,
+                content_hash VARCHAR(64) DEFAULT NULL,
+                status_code INT DEFAULT NULL
+            );
+        """)
 
-            for column in ['tranco_id', 'domain', 'start_url', 'end_url', 'timestamp', 'duration', 'content_hash',
-                           'status_code']:
-                cursor.execute(f"CREATE INDEX IF NOT EXISTS {table_name}_{column}_idx ON {table_name} ({column})")
+        for column in ['tranco_id', 'domain', 'start_url', 'end_url', 'timestamp', 'duration', 'content_hash',
+                       'status_code']:
+            cursor.execute(f"CREATE INDEX IF NOT EXISTS {table_name}_{column}_idx ON {table_name} ({column})")
 
 
 def reset_failed_crawls(table_name: str) -> set[str]:
     """Delete all crawling results whose status code is not 200 and return the affected start URLs."""
-    with connect(host=DB_HOST, port=DB_PORT, database=DB_NAME, user=DB_USER, password=DB_PWD) as connection:
-        connection.autocommit = True
-        with connection.cursor() as cursor:
-            cursor.execute(
-                f"DELETE FROM {table_name} WHERE timestamp::date='today' and status_code IS NULL OR status_code=429"
-            )
-            cursor.execute(f"SELECT start_url FROM {table_name} WHERE timestamp::date='today'")
-            return {x for x, in cursor.fetchall()}
+    with get_database_cursor(autocommit=True) as cursor:
+        cursor.execute(
+            f"DELETE FROM {table_name} WHERE timestamp::date='today' and status_code IS NULL OR status_code=429"
+        )
+        cursor.execute(f"SELECT start_url FROM {table_name} WHERE timestamp::date='today'")
+        return {x for x, in cursor.fetchall()}
 
 
 @contextmanager

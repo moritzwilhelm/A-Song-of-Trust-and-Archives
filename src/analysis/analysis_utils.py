@@ -2,11 +2,10 @@ from itertools import islice
 from pathlib import Path
 from typing import Any
 
-from psycopg2 import connect
 from urllib3.util import parse_url
 
 from configs.crawling import PREFIX
-from configs.database import DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PWD
+from configs.database import get_database_cursor
 
 
 def parse_origin(url: str) -> str:
@@ -29,8 +28,7 @@ def get_tranco_urls(tranco_file: Path, n: int = None) -> list[str]:
 
 
 def get_aggregated_date(table_name: str, aggregation_function: str) -> Any:
-    """Apply the `aggregation_function` on the all dates in `table_name` and return the resulting value."""
-    with connect(host=DB_HOST, port=DB_PORT, database=DB_NAME, user=DB_USER, password=DB_PWD) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(f"SELECT {aggregation_function}(timestamp::date) FROM {table_name}")
-            return cursor.fetchone()[0]
+    """Apply the `aggregation_function` on all dates in `table_name` and return the resulting value."""
+    with get_database_cursor() as cursor:
+        cursor.execute(f"SELECT {aggregation_function}(timestamp::date) FROM {table_name}")
+        return cursor.fetchone()[0]
