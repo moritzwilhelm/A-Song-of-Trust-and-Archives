@@ -2,8 +2,8 @@ import time
 from multiprocessing import Pool
 from pathlib import Path
 
-import psycopg2 as psycopg2
 import requests
+from psycopg2 import connect
 
 from configs.crawling import PREFIX, APIs
 from configs.database import DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PWD
@@ -17,8 +17,9 @@ ARCHIVE_URL = APIs['archiveorg']
 ARCHIVE_URL_LENGTH = len(ARCHIVE_URL.format(date=DATE, url=f"{PREFIX}"))
 
 
-def worker(urls):
-    with psycopg2.connect(host=DB_HOST, port=DB_PORT, database=DB_NAME, user=DB_USER, password=DB_PWD) as connection:
+def worker(urls: list[str]) -> None:
+    """Crawl all provided `urls` and store the responses in the database."""
+    with connect(host=DB_HOST, port=DB_PORT, database=DB_NAME, user=DB_USER, password=DB_PWD) as connection:
         connection.autocommit = True
         with connection.cursor() as cursor:
             session = requests.Session()
@@ -39,7 +40,8 @@ def worker(urls):
                     """, (tranco_id, url[ARCHIVE_URL_LENGTH:], url, data))
 
 
-def collect_data(tranco_file):
+def collect_data(tranco_file: Path) -> None:
+    """Crawl all domains in the `tranco_file`."""
     worked_urls = reset_failed_crawls(TABLE_NAME)
 
     urls = []
@@ -58,7 +60,7 @@ def collect_data(tranco_file):
 
 def main():
     setup(TABLE_NAME)
-    collect_data(Path(__file__).parent.resolve().joinpath('tranco_20k.csv'))
+    collect_data(Path(__file__).parents[1].resolve().joinpath('configs', 'tranco_20k.csv'))
 
 
 if __name__ == '__main__':

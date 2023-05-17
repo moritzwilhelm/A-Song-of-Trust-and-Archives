@@ -5,16 +5,18 @@ import signal
 from contextlib import contextmanager
 from hashlib import sha256
 from time import time_ns
+from types import FrameType
 
-import psycopg2
+from psycopg2 import connect
 from requests import Session, RequestException
 
 from configs.crawling import USER_AGENT
 from configs.database import DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PWD, STORAGE
 
 
-def setup(table_name):
-    with psycopg2.connect(host=DB_HOST, port=DB_PORT, database=DB_NAME, user=DB_USER, password=DB_PWD) as connection:
+def setup(table_name: str) -> None:
+    """Create crawling database table and create relevant indexes."""
+    with connect(host=DB_HOST, port=DB_PORT, database=DB_NAME, user=DB_USER, password=DB_PWD) as connection:
         with connection.cursor() as cursor:
             cursor.execute(f"""
                 CREATE TABLE IF NOT EXISTS {table_name} (
@@ -36,20 +38,23 @@ def setup(table_name):
                 cursor.execute(f"CREATE INDEX IF NOT EXISTS {table_name}_{column}_idx ON {table_name} ({column})")
 
 
-def reset_failed_crawls(table_name):
-    with psycopg2.connect(host=DB_HOST, port=DB_PORT, database=DB_NAME, user=DB_USER, password=DB_PWD) as connection:
+def reset_failed_crawls(table_name: str) -> set[str]:
+    """Delete all crawling results whose status code is not 200 and return the affected start URLs."""
+    with connect(host=DB_HOST, port=DB_PORT, database=DB_NAME, user=DB_USER, password=DB_PWD) as connection:
         connection.autocommit = True
         with connection.cursor() as cursor:
             cursor.execute(
-                f"DELETE FROM {table_name} WHERE timestamp::date = 'today' and status_code IS NULL OR status_code = 429"
+                f"DELETE FROM {table_name} WHERE timestamp::date='today' and status_code IS NULL OR status_code=429"
             )
-            cursor.execute(f"SELECT start_url FROM {table_name} WHERE timestamp::date = 'today'")
-            return {x[0] for x in cursor.fetchall()}
+            cursor.execute(f"SELECT start_url FROM {table_name} WHERE timestamp::date='today'")
+            return {x for x, in cursor.fetchall()}
 
 
 @contextmanager
-def timeout(seconds):
-    def raise_timeout(signum, frame):
+def timeout(seconds: int):
+    """Wrapper that throws a TimeoutError after `seconds` seconds."""
+
+    def raise_timeout(signal_number: int, frame: FrameType | None) -> None:
         raise TimeoutError(f"Hard kill due to signal timeout ({seconds}s)!")
 
     # Register a function to raise a TimeoutError on the signal.
@@ -63,7 +68,28 @@ def timeout(seconds):
         signal.signal(signal.SIGALRM, signal.SIG_IGN)
 
 
-def crawl(url, headers=None, user_agent=USER_AGENT, session=None):
+def store_on_disk(content: bytes) -> str:
+    """Store the provided content on the disk and compute the content hash."""
+    content_hash = sha256(content).hexdigest()
+    file_dir = os.path.join(STORAGE, content_hash[0], content_hash[1])
+    if not os.path.exists(file_dir):
+        os.makedirs(file_dir)
+    file_path = os.path.join(file_dir, f"{content_hash}.gz")
+    with gzip.open(file_path, 'wb') as fh:
+        fh.write(content)
+
+    return content_hash
+
+
+def crawl(url: str,
+          headers: dict[str, str] = None,
+          user_agent: str = USER_AGENT,
+          session: Session = None) -> tuple[bool, str | tuple[str, str, int, str, int]]:
+    """Crawl the URL, using the provided `headers`, `user_agent`, `session` (if specified).
+
+    Return `True` and relevant response data (URL, headers, crawl duration, content hash, status code) on success,
+    and `False` and a describing error message on failure otherwise.
+    """
     if session is None:
         session = Session()
     if headers is None:
@@ -81,14 +107,7 @@ def crawl(url, headers=None, user_agent=USER_AGENT, session=None):
         return False, str(error)
 
     # store content on disk
-    content = response.content
-    content_hash = sha256(content).hexdigest()
-    file_dir = os.path.join(STORAGE, content_hash[0], content_hash[1])
-    if not os.path.exists(file_dir):
-        os.makedirs(file_dir)
-    file_path = os.path.join(file_dir, f"{content_hash}.gz")
-    with gzip.open(file_path, 'wb') as fh:
-        fh.write(content)
+    content_hash = store_on_disk(response.content)
 
     # normalize header names
     response_headers = json.dumps({h.lower(): response.headers[h] for h in response.headers})
