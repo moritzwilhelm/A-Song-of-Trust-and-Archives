@@ -10,9 +10,10 @@ from analysis.analysis_enums import Status
 from analysis.analysis_utils import get_tranco_urls, parse_origin, get_aggregated_date
 from analysis.header_utils import normalize_headers, classify_headers
 from configs.analysis import RELEVANT_HEADERS
+from configs.crawling import INTERNET_ARCHIVE_URL
 from configs.database import get_database_cursor
 from configs.utils import join_with_json_path
-from data_collection.collect_archive_data import ARCHIVE_URL, DATE, TABLE_NAME as ARCHIVE_TABLE_NAME
+from data_collection.collect_archive_data import DATE, TABLE_NAME as ARCHIVE_TABLE_NAME
 from data_collection.collect_live_data import TABLE_NAME as LIVE_TABLE_NAME
 
 
@@ -76,7 +77,7 @@ def compute_archive_snapshot_stability(urls: list[str],
     for url in tqdm(urls):
         previous_status = Status.MISSING
         previous_snapshot = None
-        start_url = ARCHIVE_URL.format(date=DATE, url=url)
+        start_url = INTERNET_ARCHIVE_URL.format(date=DATE, url=url)
         for date in (start + timedelta(days=i) for i in range((end - start).days + 1)):
             if date not in archive_data[start_url]:
                 if previous_status in (Status.ADDED, Status.MODIFIED):

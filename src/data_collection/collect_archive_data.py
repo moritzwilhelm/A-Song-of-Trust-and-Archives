@@ -4,7 +4,7 @@ from pathlib import Path
 
 import requests
 
-from configs.crawling import PREFIX, APIs
+from configs.crawling import PREFIX, INTERNET_ARCHIVE_URL
 from configs.database import get_database_cursor
 from data_collection.crawling import setup, reset_failed_crawls, crawl
 
@@ -12,8 +12,7 @@ WORKERS = 8
 
 DATE = '20230501'
 TABLE_NAME = f"archive_data_{DATE}"
-ARCHIVE_URL = APIs['archiveorg']
-ARCHIVE_URL_LENGTH = len(ARCHIVE_URL.format(date=DATE, url=f"{PREFIX}"))
+IA_URL_PREFIX_LENGTH = len(INTERNET_ARCHIVE_URL.format(date=DATE, url=f"{PREFIX}"))
 
 
 def worker(urls: list[str]) -> None:
@@ -28,13 +27,13 @@ def worker(urls: list[str]) -> None:
                     INSERT INTO {TABLE_NAME} 
                     (tranco_id, domain, start_url, end_url, headers, duration, content_hash, status_code) 
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                """, (tranco_id, url[ARCHIVE_URL_LENGTH:], url, *data))
+                """, (tranco_id, url[IA_URL_PREFIX_LENGTH:], url, *data))
             else:
                 cursor.execute(f"""
                     INSERT INTO {TABLE_NAME} 
                     (tranco_id, domain, start_url, headers) 
                     VALUES (%s, %s, %s, to_json(%s::text)::jsonb)
-                """, (tranco_id, url[ARCHIVE_URL_LENGTH:], url, data))
+                """, (tranco_id, url[IA_URL_PREFIX_LENGTH:], url, data))
 
 
 def collect_data(tranco_file: Path) -> None:
@@ -45,7 +44,7 @@ def collect_data(tranco_file: Path) -> None:
     with open(tranco_file) as file:
         for line in file:
             tranco_id, domain = line.strip().split(',')
-            url = ARCHIVE_URL.format(date=DATE, url=f"{PREFIX}{domain}")
+            url = INTERNET_ARCHIVE_URL.format(date=DATE, url=f"{PREFIX}{domain}")
             if url not in worked_urls:
                 urls.append((tranco_id, url))
 
