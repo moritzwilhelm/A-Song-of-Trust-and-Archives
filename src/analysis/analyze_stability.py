@@ -1,7 +1,6 @@
 import json
 from collections import defaultdict
 from datetime import date as date_type, timedelta, datetime
-from pathlib import Path
 from typing import Callable
 
 from tqdm import tqdm
@@ -12,7 +11,7 @@ from analysis.header_utils import normalize_headers, classify_headers
 from configs.analysis import RELEVANT_HEADERS
 from configs.crawling import INTERNET_ARCHIVE_URL
 from configs.database import get_database_cursor
-from configs.utils import join_with_json_path
+from configs.utils import join_with_json_path, get_absolute_tranco_file_path
 from data_collection.collect_archive_data import DATE, TABLE_NAME as ARCHIVE_TABLE_NAME
 from data_collection.collect_live_data import TABLE_NAME as LIVE_TABLE_NAME
 
@@ -120,21 +119,21 @@ def compute_archive_snapshot_stability(urls: list[str],
 if __name__ == '__main__':
     # LIVE DATA
     compute_live_data_stability(
-        get_tranco_urls(Path(__file__).parents[1].resolve().joinpath('configs', 'tranco_20k.csv'), 20000),
+        get_tranco_urls(get_absolute_tranco_file_path()),
         normalization_function=normalize_headers
     )
 
     compute_live_data_stability(
-        get_tranco_urls(Path(__file__).parents[1].resolve().joinpath('configs', 'tranco_20k.csv'), 20000),
+        get_tranco_urls(get_absolute_tranco_file_path()),
         normalization_function=classify_headers
     )
 
     # ARCHIVE DATA
     compute_archive_snapshot_stability(
-        get_tranco_urls(Path(__file__).parents[1].resolve().joinpath('configs', 'tranco_20k.csv'), 20000)
+        get_tranco_urls(get_absolute_tranco_file_path())
     )
 
     # compute_archive_snapshot_stability(
-    #     get_tranco_urls(Path(__file__).parents[1].resolve().joinpath('configs', 'tranco_20k.csv'), 20000),
+    #     get_tranco_urls(get_absolute_tranco_file_path()),
     #     start=get_aggregated_date(ARCHIVE_TABLE_NAME, 'MIN') + timedelta(days=1)
     # )

@@ -17,7 +17,7 @@ def parse_origin(url: str) -> str:
     return origin
 
 
-def get_tranco_urls(tranco_file: Path, n: int = None) -> list[str]:
+def get_tranco_urls(tranco_file: Path, n: int = 20000) -> list[str]:
     """Read `n` domains from the given `tranco_file` and expand them into full urls by prepending `PREFIX`."""
     urls = []
     with open(tranco_file) as file:
