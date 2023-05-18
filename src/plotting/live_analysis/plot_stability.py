@@ -7,8 +7,8 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 import seaborn as sns
 
-from analysis.analysis_enums import Status
 from analysis.analysis_utils import get_aggregated_date
+from analysis.live.stability_enums import Status
 from configs.analysis import RELEVANT_HEADERS
 from configs.utils import join_with_json_path, join_with_plots_path
 from data_collection.collect_archive_data import TABLE_NAME as ARCHIVE_TABLE_NAME

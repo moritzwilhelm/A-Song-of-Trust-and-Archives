@@ -5,9 +5,9 @@ from typing import Callable
 
 from tqdm import tqdm
 
-from analysis.analysis_enums import Status
 from analysis.analysis_utils import get_tranco_urls, parse_origin, get_aggregated_date
 from analysis.header_utils import normalize_headers, classify_headers
+from analysis.live.stability_enums import Status
 from configs.analysis import RELEVANT_HEADERS
 from configs.crawling import INTERNET_ARCHIVE_URL
 from configs.database import get_database_cursor
