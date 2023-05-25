@@ -1,6 +1,6 @@
 from itertools import islice
 from pathlib import Path
-from typing import Any
+from typing import Any, List
 
 from urllib3.util import parse_url
 
@@ -17,7 +17,7 @@ def parse_origin(url: str) -> str:
     return origin
 
 
-def get_tranco_urls(tranco_file: Path, n: int = 20000) -> list[str]:
+def get_tranco_urls(tranco_file: Path, n: int = 20000) -> List[str]:
     """Read `n` domains from the given `tranco_file` and expand them into full urls by prepending `PREFIX`."""
     urls = []
     with open(tranco_file) as file:

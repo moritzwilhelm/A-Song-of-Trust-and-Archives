@@ -1,10 +1,11 @@
 import re
+from typing import Dict, Union, Tuple, Set, List
 
 from analysis.security_enums import XFO, CspFA, CspXSS, CspTLS, HSTSAge, HSTSSub, HSTSPreload, RP, COOP, CORP, COEP, \
     max_enum
 
 
-def normalize_headers(headers: dict, origin: str = None) -> dict:
+def normalize_headers(headers: Dict, origin: str = None) -> Dict:
     return {
         'x-frame-options': normalize_xfo(
             headers['x-frame-options']) if 'x-frame-options' in headers else '<MISSING>',
@@ -25,7 +26,7 @@ def normalize_headers(headers: dict, origin: str = None) -> dict:
     }
 
 
-def classify_headers(headers: dict, origin: str = None) -> dict:
+def classify_headers(headers: Dict, origin: str = None) -> Dict:
     return {
         'x-frame-options': classify_xfo(headers.get('x-frame-options', '')),
         'content-security-policy': classify_csp(headers.get('content-security-policy', ''), origin),
@@ -84,7 +85,7 @@ def normalize_csp(value: str) -> str:
 
 
 class CSP(dict):
-    def add_directive(self, name: str, values: set) -> bool:
+    def add_directive(self, name: str, values: Set) -> bool:
         if name in self:
             return False
 
@@ -92,7 +93,7 @@ class CSP(dict):
         return True
 
 
-def parse_csp(value: str) -> list[CSP]:
+def parse_csp(value: str) -> List[CSP]:
     policies = []
     for policy in value.strip().split(','):
         csp = CSP()
@@ -105,7 +106,7 @@ def parse_csp(value: str) -> list[CSP]:
     return policies
 
 
-def classify_framing_control(origin: str, directive: set) -> CspFA:
+def classify_framing_control(origin: str, directive: Set) -> CspFA:
     if directive == {"'none'"} or len(directive) == 0:
         return CspFA.NONE
     secure_origin = origin.replace('http://', 'https://')
@@ -119,7 +120,7 @@ def classify_framing_control(origin: str, directive: set) -> CspFA:
     return CspFA.CONSTRAINED
 
 
-def is_unsafe_inline_active(directive: set) -> bool:
+def is_unsafe_inline_active(directive: Set) -> bool:
     allow_all_inline = False
     for source in directive:
         r = r"^('nonce-[A-Za-z0-9+/\-_]+={0,2}'|'sha(256|384|512)-[A-Za-z0-9+/\-_]+={0,2}'|'strict-dynamic')$"
@@ -140,7 +141,7 @@ def classify_xss_mitigation(csp: CSP) -> CspXSS:
     return CspXSS.SAFE
 
 
-def classify_policy(policy: CSP, origin: str) -> dict[str, CspFA | CspXSS | CspTLS]:
+def classify_policy(policy: CSP, origin: str) -> Dict[str, Union[CspFA, CspXSS, CspTLS]]:
     res = {'FA': CspFA.UNSAFE, 'XSS': CspXSS.UNSAFE, 'TLS': CspTLS.UNSAFE}
     if 'frame-ancestors' in policy:
         res['FA'] = classify_framing_control(origin, policy['frame-ancestors'])
@@ -151,7 +152,7 @@ def classify_policy(policy: CSP, origin: str) -> dict[str, CspFA | CspXSS | CspT
     return res
 
 
-def classify_csp(value: str, origin: str) -> tuple[CspFA, CspXSS, CspTLS]:
+def classify_csp(value: str, origin: str) -> Tuple[CspFA, CspXSS, CspTLS]:
     res = {'FA': CspFA.UNSAFE, 'XSS': CspXSS.UNSAFE, 'TLS': CspTLS.UNSAFE}
     for policy in parse_csp(value):
         for use_case, classified_value in classify_policy(policy, origin).items():
@@ -181,7 +182,7 @@ def classify_hsts_age(max_age: int) -> HSTSAge:
         return HSTSAge.BIG
 
 
-def classify_hsts(value: str) -> tuple[HSTSAge, HSTSSub, HSTSPreload]:
+def classify_hsts(value: str) -> Tuple[HSTSAge, HSTSSub, HSTSPreload]:
     preload = False
     include_sub_domains = False
     max_age = None

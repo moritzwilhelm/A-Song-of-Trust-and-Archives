@@ -7,7 +7,7 @@ from hashlib import sha256
 from itertools import cycle
 from time import time_ns
 from types import FrameType
-from typing import Any
+from typing import Any, Set, List, Dict, Tuple, Union
 
 from requests import Session, RequestException
 
@@ -38,7 +38,7 @@ def setup(table_name: str) -> None:
             cursor.execute(f"CREATE INDEX IF NOT EXISTS {table_name}_{column}_idx ON {table_name} ({column})")
 
 
-def reset_failed_crawls(table_name: str) -> set[str]:
+def reset_failed_crawls(table_name: str) -> Set[str]:
     """Delete all crawling results whose status code is not 200 and return the affected start URLs."""
     with get_database_cursor(autocommit=True) as cursor:
         cursor.execute(
@@ -48,7 +48,7 @@ def reset_failed_crawls(table_name: str) -> set[str]:
         return {x for x, in cursor.fetchall()}
 
 
-def partition_jobs(jobs: list[Any], n: int) -> list[list[Any]]:
+def partition_jobs(jobs: List[Any], n: int) -> List[List[Any]]:
     """Partition list of jobs into `n` partitions of (almost) equal size."""
     partition = [[] for _ in range(n)]
     for i, job in zip(cycle(range(n)), jobs):
@@ -61,7 +61,7 @@ def partition_jobs(jobs: list[Any], n: int) -> list[list[Any]]:
 def timeout(seconds: int):
     """Wrapper that throws a TimeoutError after `seconds` seconds."""
 
-    def raise_timeout(signal_number: int, frame: FrameType | None) -> None:
+    def raise_timeout(signal_number: int, frame: Union[FrameType, None]) -> None:
         raise TimeoutError(f"Hard kill due to signal timeout ({seconds}s)!")
 
     # Register a function to raise a TimeoutError on the signal.
@@ -89,10 +89,10 @@ def store_on_disk(content: bytes) -> str:
 
 
 def crawl(url: str,
-          headers: dict[str, str] = None,
+          headers: Dict[str, str] = None,
           user_agent: str = USER_AGENT,
-          proxies: dict[str, str] = None,
-          session: Session = None) -> tuple[bool, str | tuple[str, str, int, str, int]]:
+          proxies: Dict[str, str] = None,
+          session: Session = None) -> Tuple[bool, Union[str, Tuple[str, str, int, str, int]]]:
     """Crawl the URL, using the provided `headers`, `user_agent`, `session` (if specified).
 
     Return `True` and relevant response data (URL, headers, crawl duration, content hash, status code) on success,

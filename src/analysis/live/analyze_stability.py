@@ -1,7 +1,7 @@
 import json
 from collections import defaultdict
 from datetime import date as date_type, timedelta, datetime
-from typing import Callable
+from typing import Callable, List, Dict
 
 from tqdm import tqdm
 
@@ -12,14 +12,16 @@ from configs.analysis import RELEVANT_HEADERS
 from configs.crawling import INTERNET_ARCHIVE_URL
 from configs.database import get_database_cursor
 from configs.utils import join_with_json_path, get_absolute_tranco_file_path
-from data_collection.collect_archive_data import DATE, TABLE_NAME as ARCHIVE_TABLE_NAME
+from data_collection.collect_archive_data import DATES, TABLE_NAME as ARCHIVE_TABLE_NAME
 from data_collection.collect_live_data import TABLE_NAME as LIVE_TABLE_NAME
 
+DATE = DATES[0]
 
-def compute_live_data_stability(urls: list[str],
+
+def compute_live_data_stability(urls: List[str],
                                 start: date_type = get_aggregated_date(LIVE_TABLE_NAME, 'MIN'),
                                 end: date_type = get_aggregated_date(LIVE_TABLE_NAME, 'MAX'),
-                                normalization_function: Callable[[dict, str], dict] = normalize_headers) -> None:
+                                normalization_function: Callable[[Dict, str], Dict] = normalize_headers) -> None:
     """Compute the stability of (crawled) live data from `start` date up to (inclusive) `end` date."""
     assert start <= end
 
@@ -56,7 +58,7 @@ def compute_live_data_stability(urls: list[str],
         json.dump(result, file, indent=2, sort_keys=True)
 
 
-def compute_archive_snapshot_stability(urls: list[str],
+def compute_archive_snapshot_stability(urls: List[str],
                                        start: date_type = get_aggregated_date(ARCHIVE_TABLE_NAME, 'MIN'),
                                        end: date_type = get_aggregated_date(ARCHIVE_TABLE_NAME, 'MAX')) -> None:
     """Compute the stability of archived snapshots from `start` date up to (inclusive) `end` date."""

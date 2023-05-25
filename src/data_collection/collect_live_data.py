@@ -1,6 +1,7 @@
 from itertools import islice
 from multiprocessing import Pool
 from pathlib import Path
+from typing import List, Tuple
 
 from configs.crawling import PREFIX
 from configs.database import get_database_cursor
@@ -12,7 +13,7 @@ WORKERS = 8
 TABLE_NAME = 'live_data'
 
 
-def worker(urls: list[tuple[int, str, str]]) -> None:
+def worker(urls: List[Tuple[int, str, str]]) -> None:
     """Crawl all provided `urls` and store the responses in the database."""
     with get_database_cursor(autocommit=True) as cursor:
         for tranco_id, domain, url in urls:

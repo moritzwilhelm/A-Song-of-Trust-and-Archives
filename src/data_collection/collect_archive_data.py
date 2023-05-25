@@ -4,6 +4,7 @@ from datetime import datetime
 from itertools import islice
 from multiprocessing import Pool
 from pathlib import Path
+from typing import List, Tuple
 
 import requests
 
@@ -19,7 +20,7 @@ TABLE_NAME = "archive_data_{date}"
 PROXIES = None
 
 
-def worker(urls: list[tuple[str, int, str, str]]) -> None:
+def worker(urls: List[Tuple[str, int, str, str]]) -> None:
     """Crawl all provided `urls` and store the responses in the database."""
     with get_database_cursor(autocommit=True) as cursor:
         session = requests.Session()
@@ -40,7 +41,7 @@ def worker(urls: list[tuple[str, int, str, str]]) -> None:
                 """, (tranco_id, domain, url, data))
 
 
-def collect_data(tranco_file: Path, dates: list[str], n: int = 20000) -> None:
+def collect_data(tranco_file: Path, dates: List[str], n: int = 20000) -> None:
     """Crawl `n` domains in the `tranco_file` for each date in `dates`."""
     worked_urls = defaultdict(set)
     for date in dates:
