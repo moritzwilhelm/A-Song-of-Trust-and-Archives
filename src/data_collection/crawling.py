@@ -4,8 +4,10 @@ import os
 import signal
 from contextlib import contextmanager
 from hashlib import sha256
+from itertools import cycle
 from time import time_ns
 from types import FrameType
+from typing import Any
 
 from requests import Session, RequestException
 
@@ -46,6 +48,15 @@ def reset_failed_crawls(table_name: str) -> set[str]:
         return {x for x, in cursor.fetchall()}
 
 
+def partition_jobs(jobs: list[Any], n: int) -> list[list[Any]]:
+    """Partition list of jobs into `n` partitions of (almost) equal size."""
+    partition = [[] for _ in range(n)]
+    for i, job in zip(cycle(range(n)), jobs):
+        partition[i].append(job)
+
+    return partition
+
+
 @contextmanager
 def timeout(seconds: int):
     """Wrapper that throws a TimeoutError after `seconds` seconds."""
@@ -80,6 +91,7 @@ def store_on_disk(content: bytes) -> str:
 def crawl(url: str,
           headers: dict[str, str] = None,
           user_agent: str = USER_AGENT,
+          proxies: dict[str, str] = None,
           session: Session = None) -> tuple[bool, str | tuple[str, str, int, str, int]]:
     """Crawl the URL, using the provided `headers`, `user_agent`, `session` (if specified).
 
@@ -95,7 +107,7 @@ def crawl(url: str,
     try:
         with timeout(30):
             start = time_ns()
-            response = session.get(url, headers=headers, timeout=20)
+            response = session.get(url, headers=headers, proxies=proxies, timeout=20)
             duration = time_ns() - start
     except RequestException as error:
         return False, str(error)
