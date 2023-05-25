@@ -4,3 +4,4 @@ linux-venv
 venv
 __pycache__
 *.egg-info
+src/build
