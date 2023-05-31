@@ -7,7 +7,7 @@ from hashlib import sha256
 from itertools import cycle
 from time import time_ns
 from types import FrameType
-from typing import Any, Set, List, Dict, Tuple, Union
+from typing import Any, Set, List, Dict, Tuple, Union, Optional
 
 from requests import Session, RequestException
 
@@ -61,7 +61,7 @@ def partition_jobs(jobs: List[Any], n: int) -> List[List[Any]]:
 def timeout(seconds: int):
     """Wrapper that throws a TimeoutError after `seconds` seconds."""
 
-    def raise_timeout(signal_number: int, frame: Union[FrameType, None]) -> None:
+    def raise_timeout(signal_number: int, frame: Optional[FrameType]) -> None:
         raise TimeoutError(f"Hard kill due to signal timeout ({seconds}s)!")
 
     # Register a function to raise a TimeoutError on the signal.

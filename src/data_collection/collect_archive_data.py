@@ -15,7 +15,17 @@ from data_collection.crawling import setup, reset_failed_crawls, crawl, partitio
 
 WORKERS = 8
 
-DATES = [datetime(2023, 5, 1, 12, 0, 0)]
+DATES = [
+    datetime(2016, 1, 15, 12), datetime(2016, 4, 15, 12), datetime(2016, 7, 15, 12), datetime(2016, 10, 15, 12),
+    datetime(2017, 1, 15, 12), datetime(2017, 4, 15, 12), datetime(2017, 7, 15, 12), datetime(2017, 10, 15, 12),
+    datetime(2018, 1, 15, 12), datetime(2018, 4, 15, 12), datetime(2018, 7, 15, 12), datetime(2018, 10, 15, 12),
+    datetime(2019, 1, 15, 12), datetime(2019, 4, 15, 12), datetime(2019, 7, 15, 12), datetime(2019, 10, 15, 12),
+    datetime(2020, 1, 15, 12), datetime(2020, 4, 15, 12), datetime(2020, 7, 15, 12), datetime(2020, 10, 15, 12),
+    datetime(2021, 1, 15, 12), datetime(2021, 4, 15, 12), datetime(2021, 7, 15, 12), datetime(2021, 10, 15, 12),
+    datetime(2022, 1, 15, 12), datetime(2022, 4, 15, 12), datetime(2022, 7, 15, 12), datetime(2022, 10, 15, 12),
+    datetime(2023, 1, 15, 12), datetime(2023, 4, 15, 12),  # datetime(2023, 7, 15, 12), datetime(2023, 10, 15, 12),
+]
+
 TABLE_NAME = "archive_data_{date}"
 PROXIES = None
 
