@@ -1,39 +1,46 @@
 from itertools import islice
 from multiprocessing import Pool
 from pathlib import Path
-from typing import List, Tuple
+from typing import NamedTuple, List
 
 from configs.crawling import PREFIX
 from configs.database import get_database_cursor
 from configs.utils import get_absolute_tranco_file_path
-from data_collection.crawling import setup, reset_failed_crawls, crawl, partition_jobs
+from data_collection.crawling import setup, reset_failed_crawls, partition_jobs, crawl, CrawlingException
 
 WORKERS = 8
 
 TABLE_NAME = 'live_data'
 
 
-def worker(urls: List[Tuple[int, str, str]]) -> None:
+class LiveJob(NamedTuple):
+    """Represents a job for crawling and storing data in the database."""
+    tranco_id: int
+    domain: str
+    url: str
+
+
+def worker(jobs: List[LiveJob]) -> None:
     """Crawl all provided `urls` and store the responses in the database."""
     with get_database_cursor(autocommit=True) as cursor:
-        for tranco_id, domain, url in urls:
-            success, data = crawl(url)
-            if success:
+        for tranco_id, domain, url in jobs:
+            try:
+                response = crawl(url)
                 cursor.execute(f"""
-                        INSERT INTO {TABLE_NAME} 
-                        (tranco_id, domain, start_url, end_url, headers, duration, content_hash, status_code) 
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                    """, (tranco_id, domain, url, *data))
-            else:
+                    INSERT INTO {TABLE_NAME} 
+                    (tranco_id, domain, start_url, end_url, status_code, headers, content_hash, response_time) 
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """, (tranco_id, domain, url, *response.serialized_data))
+            except CrawlingException as error:
                 cursor.execute(f"""
-                        INSERT INTO {TABLE_NAME} 
-                        (tranco_id, domain, start_url, headers) 
-                        VALUES (%s, %s, %s, to_json(%s::text)::jsonb)
-                    """, (tranco_id, domain, url, data))
+                    INSERT INTO {TABLE_NAME} 
+                    (tranco_id, domain, start_url, headers) 
+                    VALUES (%s, %s, %s, %s)
+                """, (tranco_id, domain, url, error.to_json()))
 
 
-def collect_data(tranco_file: Path, n: int = 20000) -> None:
-    """Crawl `n` domains in the `tranco_file`."""
+def prepare_jobs(tranco_file: Path, n: int = 20000) -> List[LiveJob]:
+    """Build a list of LiveJob instances for the given Tranco file and maximum number of domains."""
     worked_urls = reset_failed_crawls(TABLE_NAME)
 
     jobs = []
@@ -42,15 +49,23 @@ def collect_data(tranco_file: Path, n: int = 20000) -> None:
             tranco_id, domain = line.strip().split(',')
             url = f"{PREFIX}{domain}"
             if url not in worked_urls:
-                jobs.append((tranco_id, domain, url))
+                jobs.append(LiveJob(tranco_id, domain, url))
 
+    return jobs
+
+
+def run_jobs(jobs: List[LiveJob]) -> None:
+    """Execute the provided crawl jobs using multiprocessing."""
     with Pool(WORKERS) as p:
         p.map(worker, partition_jobs(jobs, WORKERS))
 
 
 def main():
     setup(TABLE_NAME)
-    collect_data(get_absolute_tranco_file_path())
+
+    # Prepare and execute the crawl jobs
+    jobs = prepare_jobs(get_absolute_tranco_file_path())
+    run_jobs(jobs)
 
 
 if __name__ == '__main__':

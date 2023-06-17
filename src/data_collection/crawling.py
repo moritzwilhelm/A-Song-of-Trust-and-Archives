@@ -1,15 +1,16 @@
 import gzip
-import json
 import os
 import signal
+import traceback
 from contextlib import contextmanager
 from hashlib import sha256
 from itertools import cycle
 from time import time_ns
 from types import FrameType
-from typing import Any, Set, List, Dict, Tuple, Union, Optional
+from typing import Any, Set, List, Tuple, Dict, Optional
 
-from requests import Session, RequestException
+from psycopg2.extras import Json
+from requests import Session, RequestException, Response
 
 from configs.crawling import USER_AGENT
 from configs.database import STORAGE, get_database_cursor
@@ -25,16 +26,16 @@ def setup(table_name: str) -> None:
                 domain VARCHAR(128),
                 start_url VARCHAR(128),
                 end_url TEXT DEFAULT NULL,
+                status_code INT DEFAULT NULL,
                 headers JSONB DEFAULT NULL,
-                timestamp TIMESTAMP DEFAULT NOW(),
-                duration NUMERIC DEFAULT NULL,
                 content_hash VARCHAR(64) DEFAULT NULL,
-                status_code INT DEFAULT NULL
+                response_time NUMERIC DEFAULT NULL,
+                timestamp TIMESTAMPTZ DEFAULT NOW()
             );
         """)
 
-        for column in ['tranco_id', 'domain', 'start_url', 'end_url', 'timestamp', 'duration', 'content_hash',
-                       'status_code']:
+        for column in ['tranco_id', 'domain', 'start_url', 'end_url', 'status_code', 'content_hash', 'response_time',
+                       'timestamp']:
             cursor.execute(f"CREATE INDEX IF NOT EXISTS {table_name}_{column}_idx ON {table_name} ({column})")
 
 
@@ -88,15 +89,41 @@ def store_on_disk(content: bytes) -> str:
     return content_hash
 
 
+class CrawlingException(Exception):
+    """An Exception to be raised if there has been an error during crawling."""
+
+    def to_json(self) -> Json:
+        return Json(dict(
+            error=str(self),
+            cause=type(self.__cause__).__name__ if self.__cause__ else None,
+            message=str(self.__cause__),
+            traceback=''.join(traceback.format_tb(self.__cause__.__traceback__)) if self.__cause__ is not None else None
+        ))
+
+
+class CrawlingResponse(Response):
+    """A wrapper clas that extends requests' Response object with a `content_hash` and `response_time`."""
+    __attrs__ = Response.__attrs__ + ["content_hash", "response_time", "serialized_data"]
+
+    def __init__(self, response: Response, content_hash: str, response_time: int):
+        super().__init__()
+        self.__dict__ = response.__dict__
+        self.content_hash = content_hash
+        self.response_time = response_time
+
+    @property
+    def serialized_data(self) -> Tuple[str, int, Json, str, int]:
+        return self.url, self.status_code, Json(dict(self.headers)), self.content_hash, self.response_time
+
+
 def crawl(url: str,
           headers: Dict[str, str] = None,
           user_agent: str = USER_AGENT,
           proxies: Dict[str, str] = None,
-          session: Session = None) -> Tuple[bool, Union[str, Tuple[str, str, int, str, int]]]:
+          session: Session = None) -> CrawlingResponse:
     """Crawl the URL, using the provided `headers`, `user_agent`, `session` (if specified).
 
-    Return `True` and relevant response data (URL, headers, crawl duration, content hash, status code) on success,
-    and `False` and a describing error message on failure otherwise.
+    Return the response object and its hashed content. Raise a CrawlingException on failure.
     """
     if session is None:
         session = Session()
@@ -108,16 +135,11 @@ def crawl(url: str,
         with timeout(30):
             start = time_ns()
             response = session.get(url, headers=headers, proxies=proxies, timeout=20)
-            duration = time_ns() - start
-    except RequestException as error:
-        return False, str(error)
-    except TimeoutError as error:
-        return False, str(error)
+            response_time = time_ns() - start
+    except (RequestException, TimeoutError) as error:
+        raise CrawlingException(url) from error
 
     # store content on disk
     content_hash = store_on_disk(response.content)
 
-    # normalize header names
-    response_headers = json.dumps({h.lower(): response.headers[h] for h in response.headers})
-
-    return True, (response.url, response_headers, duration, content_hash, response.status_code)
+    return CrawlingResponse(response, content_hash, response_time)

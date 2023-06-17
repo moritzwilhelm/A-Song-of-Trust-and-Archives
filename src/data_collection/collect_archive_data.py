@@ -4,14 +4,14 @@ from datetime import datetime
 from itertools import islice
 from multiprocessing import Pool
 from pathlib import Path
-from typing import List, Tuple
+from typing import NamedTuple, List, Dict, Optional
 
 import requests
 
 from configs.crawling import PREFIX, INTERNET_ARCHIVE_URL
 from configs.database import get_database_cursor
 from configs.utils import get_absolute_tranco_file_path
-from data_collection.crawling import setup, reset_failed_crawls, crawl, partition_jobs
+from data_collection.crawling import setup, reset_failed_crawls, partition_jobs, crawl, CrawlingException
 
 WORKERS = 8
 
@@ -27,32 +27,40 @@ DATES = [
 ]
 
 TABLE_NAME = "archive_data_{date}"
-PROXIES = None
 
 
-def worker(urls: List[Tuple[str, int, str, str]]) -> None:
+class ArchiveJob(NamedTuple):
+    """Represents a job for crawling the archive and storing data in the database."""
+    date: str
+    tranco_id: int
+    domain: str
+    url: str
+    proxies: Optional[Dict[str, str]]
+
+
+def worker(jobs: List[ArchiveJob]) -> None:
     """Crawl all provided `urls` and store the responses in the database."""
     with get_database_cursor(autocommit=True) as cursor:
         session = requests.Session()
-        for date, tranco_id, domain, url in urls:
+        for date, tranco_id, domain, url, proxies in jobs:
             time.sleep(0.2)
-            success, data = crawl(url, proxies=PROXIES, session=session)
-            if success:
+            try:
+                response = crawl(url, proxies=proxies, session=session)
                 cursor.execute(f"""
                     INSERT INTO {TABLE_NAME.format(date=date)} 
-                    (tranco_id, domain, start_url, end_url, headers, duration, content_hash, status_code) 
+                    (tranco_id, domain, start_url, end_url, status_code, headers, content_hash, response_time) 
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                """, (tranco_id, domain, url, *data))
-            else:
+                """, (tranco_id, domain, url, *response.serialized_data))
+            except CrawlingException as error:
                 cursor.execute(f"""
                     INSERT INTO {TABLE_NAME.format(date=date)} 
                     (tranco_id, domain, start_url, headers) 
-                    VALUES (%s, %s, %s, to_json(%s::text)::jsonb)
-                """, (tranco_id, domain, url, data))
+                    VALUES (%s, %s, %s, %s)
+                """, (tranco_id, domain, url, error.to_json()))
 
 
-def collect_data(tranco_file: Path, dates: List[str], n: int = 20000) -> None:
-    """Crawl `n` domains in the `tranco_file` for each date in `dates`."""
+def prepare_jobs(tranco_file: Path, dates: List[str], n: int = 20000) -> List[ArchiveJob]:
+    """Build a list of ArchiveJob instances for the given Tranco file, dates, and maximum number of domains per date."""
     worked_urls = defaultdict(set)
     for date in dates:
         worked_urls[date] = reset_failed_crawls(TABLE_NAME.format(date=date))
@@ -64,24 +72,25 @@ def collect_data(tranco_file: Path, dates: List[str], n: int = 20000) -> None:
             for date in dates:
                 url = INTERNET_ARCHIVE_URL.format(date=date, url=f"{PREFIX}{domain}")
                 if url not in worked_urls[date]:
-                    jobs.append((date, tranco_id, domain, url))
+                    jobs.append(ArchiveJob(date, tranco_id, domain, url, None))
 
+    return jobs
+
+
+def run_jobs(jobs: List[ArchiveJob]) -> None:
+    """Execute the provided crawl jobs using multiprocessing."""
     with Pool(WORKERS) as p:
         p.map(worker, partition_jobs(jobs, WORKERS))
 
 
-def main(dates=None, proxies=PROXIES):
-    if dates is None:
-        dates = DATES
-
-    global PROXIES
-    PROXIES = proxies
-
-    dates = [datetime.strftime(date, '%Y%m%d%H%M%S') for date in dates]
+def main():
+    dates = [date.strftime('%Y%m%d%H%M%S') for date in DATES]
     for date in dates:
         setup(TABLE_NAME.format(date=date))
 
-    collect_data(get_absolute_tranco_file_path(), dates)
+    # Prepare and execute the crawl jobs
+    jobs = prepare_jobs(get_absolute_tranco_file_path(), dates)
+    run_jobs(jobs)
 
 
 if __name__ == '__main__':
