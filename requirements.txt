@@ -2,7 +2,7 @@ pip~=23.1.2
 wheel==0.40.0
 certifi==2023.5.7
 idna~=3.4
-urllib3==2.0.2
+urllib3==2.0.3
 setuptools==67.8.0
 requests==2.31.0
 psycopg2-binary~=2.9.6
@@ -14,3 +14,11 @@ six~=1.16.0
 packaging~=23.1
 pyparsing~=3.0.9
 seaborn~=0.12.2
+python-dateutil~=2.8.2
+pytz~=2023.3
+numpy~=1.24.3
+pandas~=2.0.2
+cycler~=0.11.0
+contourpy==1.1.0
+fonttools==4.40.0
+kiwisolver~=1.4.4
