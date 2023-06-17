@@ -4,6 +4,6 @@ setup(
     name='master-thesis',
     version='1.0',
     packages=find_packages(),
-    package_data={'configs': ['tranco_W9JG9.csv']},
+    package_data={'configs': ['tranco_W9JG9.csv', 'tranco_random_sample_1337.csv']},
     include_package_data=True
 )
