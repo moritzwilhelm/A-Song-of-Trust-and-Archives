@@ -4,9 +4,9 @@ from pathlib import Path
 from typing import NamedTuple, List
 
 from configs.crawling import PREFIX
-from configs.database import get_database_cursor
+from configs.database import get_database_cursor, setup
 from configs.utils import get_absolute_tranco_file_path
-from data_collection.crawling import setup, reset_failed_crawls, partition_jobs, crawl, CrawlingException
+from data_collection.crawling import reset_failed_crawls, partition_jobs, crawl, CrawlingException
 
 WORKERS = 8
 
