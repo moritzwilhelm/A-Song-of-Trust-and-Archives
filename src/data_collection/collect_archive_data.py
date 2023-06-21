@@ -1,29 +1,26 @@
 import time
 from collections import defaultdict
 from datetime import datetime
-from itertools import islice
 from multiprocessing import Pool
 from pathlib import Path
 from typing import NamedTuple, List, Dict, Optional
 
 import requests
+from pytz import utc
 
-from configs.crawling import PREFIX, INTERNET_ARCHIVE_URL, INTERNET_ARCHIVE_TIMESTAMP_FORMAT
+from configs.crawling import INTERNET_ARCHIVE_URL, INTERNET_ARCHIVE_TIMESTAMP_FORMAT
 from configs.database import get_database_cursor, setup
-from configs.utils import get_absolute_tranco_file_path
+from configs.utils import get_absolute_tranco_file_path, get_tranco_data
 from data_collection.crawling import reset_failed_crawls, partition_jobs, crawl, CrawlingException
 
 WORKERS = 8
 
+TODAY = datetime.now(utc)
 TIMESTAMPS = [
-    datetime(2016, 1, 15, 12), datetime(2016, 4, 15, 12), datetime(2016, 7, 15, 12), datetime(2016, 10, 15, 12),
-    datetime(2017, 1, 15, 12), datetime(2017, 4, 15, 12), datetime(2017, 7, 15, 12), datetime(2017, 10, 15, 12),
-    datetime(2018, 1, 15, 12), datetime(2018, 4, 15, 12), datetime(2018, 7, 15, 12), datetime(2018, 10, 15, 12),
-    datetime(2019, 1, 15, 12), datetime(2019, 4, 15, 12), datetime(2019, 7, 15, 12), datetime(2019, 10, 15, 12),
-    datetime(2020, 1, 15, 12), datetime(2020, 4, 15, 12), datetime(2020, 7, 15, 12), datetime(2020, 10, 15, 12),
-    datetime(2021, 1, 15, 12), datetime(2021, 4, 15, 12), datetime(2021, 7, 15, 12), datetime(2021, 10, 15, 12),
-    datetime(2022, 1, 15, 12), datetime(2022, 4, 15, 12), datetime(2022, 7, 15, 12), datetime(2022, 10, 15, 12),
-    datetime(2023, 1, 15, 12), datetime(2023, 4, 15, 12),  # datetime(2023, 7, 15, 12), datetime(2023, 10, 15, 12),
+    timestamp
+    for year in range(2016, TODAY.year + 1)
+    for month in [1, 4, 7, 10]
+    if (timestamp := datetime(year, month, 15, 12, tzinfo=utc)) <= TODAY
 ]
 
 TABLE_NAME = "archive_data_{timestamp}"
@@ -35,7 +32,7 @@ class ArchiveJob(NamedTuple):
     tranco_id: int
     domain: str
     url: str
-    proxies: Optional[Dict[str, str]]
+    proxies: Optional[Dict[str, str]] = None
 
 
 def worker(jobs: List[ArchiveJob]) -> None:
@@ -66,21 +63,19 @@ def prepare_jobs(tranco_file: Path, timestamps: List[str], n: int = 20000) -> Li
         worked_urls[timestamp] = reset_failed_crawls(TABLE_NAME.format(timestamp=timestamp))
 
     jobs = []
-    with open(tranco_file) as file:
-        for line in islice(file, n):
-            tranco_id, domain = line.strip().split(',')
-            for timestamp in timestamps:
-                url = INTERNET_ARCHIVE_URL.format(timestamp=timestamp, url=f"{PREFIX}{domain}")
-                if url not in worked_urls[timestamp]:
-                    jobs.append(ArchiveJob(timestamp, tranco_id, domain, url, None))
+    for tranco_id, domain, url in get_tranco_data(tranco_file, n):
+        for timestamp in timestamps:
+            url = INTERNET_ARCHIVE_URL.format(timestamp=timestamp, url=url)
+            if url not in worked_urls[timestamp]:
+                jobs.append(ArchiveJob(timestamp, tranco_id, domain, url))
 
     return jobs
 
 
 def run_jobs(jobs: List[ArchiveJob]) -> None:
     """Execute the provided crawl jobs using multiprocessing."""
-    with Pool(WORKERS) as p:
-        p.map(worker, partition_jobs(jobs, WORKERS))
+    with Pool(WORKERS) as pool:
+        pool.map(worker, partition_jobs(jobs, WORKERS))
 
 
 def main():
