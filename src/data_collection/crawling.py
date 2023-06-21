@@ -1,5 +1,6 @@
 import gzip
 import os
+import random
 import signal
 import traceback
 from contextlib import contextmanager
@@ -29,6 +30,8 @@ def reset_failed_crawls(table_name: str) -> Set[str]:
 def partition_jobs(jobs: List[Any], n: int) -> List[List[Any]]:
     """Partition list of jobs into `n` partitions of (almost) equal size."""
     partition = [[] for _ in range(n)]
+
+    random.shuffle(jobs)
     for i, job in zip(cycle(range(n)), jobs):
         partition[i].append(job)
 
