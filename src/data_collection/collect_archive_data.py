@@ -17,10 +17,10 @@ WORKERS = 8
 
 TODAY = datetime.now(utc)
 TIMESTAMPS = [
-    timestamp
+    datetime(year, month, 15, 12, tzinfo=utc)
     for year in range(2016, TODAY.year + 1)
     for month in [1, 4, 7, 10]
-    if (timestamp := datetime(year, month, 15, 12, tzinfo=utc)) <= TODAY
+    if datetime(year, month, 15, 12, tzinfo=utc) <= TODAY
 ]
 
 TABLE_NAME = "archive_data_{timestamp}"
