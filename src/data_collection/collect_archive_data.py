@@ -1,8 +1,8 @@
-import time
 from collections import defaultdict
 from datetime import datetime
 from multiprocessing import Pool
 from pathlib import Path
+from time import sleep
 from typing import NamedTuple, List, Dict, Optional
 
 import requests
@@ -40,7 +40,7 @@ def worker(jobs: List[ArchiveJob]) -> None:
     with get_database_cursor(autocommit=True) as cursor:
         session = requests.Session()
         for timestamp, tranco_id, domain, url, proxies in jobs:
-            time.sleep(0.2)
+            sleep(0.2)
             try:
                 response = crawl(url, proxies=proxies, session=session)
                 cursor.execute(f"""

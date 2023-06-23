@@ -2,7 +2,8 @@ from datetime import datetime, timedelta
 from itertools import chain
 from multiprocessing import Pool
 from pathlib import Path
-from typing import NamedTuple, List
+from time import sleep
+from typing import NamedTuple, List, Tuple
 
 import requests
 from psycopg2.extras import Json
@@ -50,6 +51,14 @@ def setup_candidate_lists_table() -> None:
             """)
 
 
+def reset_failed_crawls() -> List[Tuple[datetime, str]]:
+    """Delete all crawling results with an error."""
+    with get_database_cursor(autocommit=True) as cursor:
+        cursor.execute("DELETE FROM PROXIMITY_SET_CANDIDATES WHERE error IS NOT NULL")
+        cursor.execute("SELECT timestamp, url FROM PROXIMITY_SET_CANDIDATES")
+        return cursor.fetchall()
+
+
 def find_candidates(url: str, timestamp: datetime, n: int, session=None) -> List[str]:
     """Collect the `n` best candidates for the proximity set of (`url`, `timestamp`)."""
     response = crawl(
@@ -80,6 +89,7 @@ def worker(jobs: List[CdxJob]) -> None:
     session = requests.Session()
     with get_database_cursor(autocommit=True) as cursor:
         for timestamp, tranco_id, domain, url in jobs:
+            sleep(0.2)
             try:
                 candidates = find_candidates(url, timestamp, 25, session)
                 cursor.execute("""
@@ -95,7 +105,13 @@ def worker(jobs: List[CdxJob]) -> None:
 
 def crawl_web_archive_cdx(tranco_file: Path, n: int = 20000) -> None:
     """Crawl the Internet Archive CDX server for candidates for each (url, timestamp) proximity set."""
-    jobs = [CdxJob(ts, tid, domain, url) for tid, domain, url in get_tranco_data(tranco_file, n) for ts in TIMESTAMPS]
+    worked_jobs = reset_failed_crawls()
+
+    jobs = [
+        CdxJob(ts, tid, domain, url)
+        for tid, domain, url in get_tranco_data(tranco_file, n) for ts in TIMESTAMPS
+        if (ts, url) not in worked_jobs
+    ]
 
     with Pool(WORKERS) as pool:
         pool.map(worker, partition_jobs(jobs, WORKERS))
