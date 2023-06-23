@@ -3,7 +3,7 @@ from itertools import chain
 from multiprocessing import Pool
 from pathlib import Path
 from time import sleep
-from typing import NamedTuple, List, Tuple, Optional, Dict
+from typing import NamedTuple, List, Tuple, Optional, Dict, Set
 
 import requests
 from psycopg2.extras import Json
@@ -51,12 +51,12 @@ def setup_candidates_lists_table() -> None:
             """)
 
 
-def reset_failed_crawls() -> List[Tuple[datetime, str]]:
+def reset_failed_crawls() -> Set[Tuple[datetime, str]]:
     """Delete all crawling results with an error."""
     with get_database_cursor(autocommit=True) as cursor:
         cursor.execute("DELETE FROM PROXIMITY_SET_CANDIDATES WHERE error IS NOT NULL")
         cursor.execute("SELECT timestamp, url FROM PROXIMITY_SET_CANDIDATES")
-        return cursor.fetchall()
+        return set(cursor.fetchall())
 
 
 def find_candidates(url: str,
