@@ -1,10 +1,27 @@
 from argparse import ArgumentParser, Namespace as Arguments
-from multiprocessing import Pool
+from multiprocessing import Process, pool
 from typing import List, Dict, Optional
 
 from configs.crawling import TIMESTAMPS
 from data_collection.collect_archive_proximity_set import crawl_web_archive_cdx
 from data_collection.crawling import partition_jobs
+
+
+class NoDaemonProcess(Process):
+    """Wrapper class that implements a non-daemonic process."""
+
+    def _get_daemon(self):
+        return False
+
+    def _set_daemon(self, value):
+        pass
+
+    daemon = property(_get_daemon, _set_daemon)
+
+
+class NoDaemonPool(pool.Pool):
+    """Wrapper class to allow pool processes to spawn children."""
+    Process = NoDaemonProcess
 
 
 def build_proxies(ports: List[int]) -> List[Optional[Dict[str, str]]]:
@@ -29,8 +46,8 @@ def crawl_web_archive_cdx_worker(timestamps, proxy):
 
 def start_collect_archive_proximity_set_indexes(proxies: List[Optional[Dict[str, str]]]) -> None:
     """Start crawling the Internet Archive CDX server with the provided set of proxies."""
-    with Pool(len(proxies)) as pool:
-        pool.starmap(crawl_web_archive_cdx_worker, zip(partition_jobs(list(TIMESTAMPS), len(proxies)), proxies))
+    with NoDaemonPool(len(proxies)) as nd_pool:
+        nd_pool.starmap(crawl_web_archive_cdx_worker, zip(partition_jobs(list(TIMESTAMPS), len(proxies)), proxies))
 
 
 def main():
