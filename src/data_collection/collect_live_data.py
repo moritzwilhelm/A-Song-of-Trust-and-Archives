@@ -2,6 +2,7 @@ from multiprocessing import Pool
 from pathlib import Path
 from typing import NamedTuple, List
 
+from configs.crawling import NUMBER_URLS
 from configs.database import get_database_cursor, setup
 from configs.utils import get_absolute_tranco_file_path, get_tranco_data
 from data_collection.crawling import reset_failed_crawls, partition_jobs, crawl, CrawlingException
@@ -37,7 +38,7 @@ def worker(jobs: List[LiveJob]) -> None:
                 """, (tranco_id, domain, url, error.to_json()))
 
 
-def prepare_jobs(tranco_file: Path, n: int = 20000) -> List[LiveJob]:
+def prepare_jobs(tranco_file: Path = get_absolute_tranco_file_path(), n: int = NUMBER_URLS) -> List[LiveJob]:
     """Build a list of LiveJob instances for the given Tranco file and maximum number of domains."""
     worked_urls = reset_failed_crawls(TABLE_NAME)
     return [LiveJob(tid, domain, url) for tid, domain, url in get_tranco_data(tranco_file, n) if url not in worked_urls]
@@ -53,7 +54,7 @@ def main():
     setup(TABLE_NAME)
 
     # Prepare and execute the crawl jobs
-    jobs = prepare_jobs(get_absolute_tranco_file_path())
+    jobs = prepare_jobs()
     run_jobs(jobs)
 
 

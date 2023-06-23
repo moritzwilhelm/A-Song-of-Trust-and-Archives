@@ -17,6 +17,29 @@ from configs.crawling import USER_AGENT
 from configs.database import STORAGE, get_database_cursor
 
 
+def setup(table_name: str) -> None:
+    """Create crawling database table and create relevant indexes."""
+    with get_database_cursor() as cursor:
+        cursor.execute(f"""
+            CREATE TABLE IF NOT EXISTS {table_name} (
+                id SERIAL PRIMARY KEY,
+                tranco_id INTEGER,
+                domain VARCHAR(128),
+                start_url VARCHAR(128),
+                end_url TEXT DEFAULT NULL,
+                status_code INT DEFAULT NULL,
+                headers JSONB DEFAULT NULL,
+                content_hash VARCHAR(64) DEFAULT NULL,
+                response_time NUMERIC DEFAULT NULL,
+                timestamp TIMESTAMPTZ DEFAULT NOW()
+            );
+        """)
+
+        for column in ['tranco_id', 'domain', 'start_url', 'end_url', 'status_code', 'content_hash', 'response_time',
+                       'timestamp']:
+            cursor.execute(f"CREATE INDEX IF NOT EXISTS {table_name}_{column}_idx ON {table_name} ({column})")
+
+
 def reset_failed_crawls(table_name: str) -> Set[str]:
     """Delete all crawling results whose status code is not 200 and return the affected start URLs."""
     with get_database_cursor(autocommit=True) as cursor:
@@ -97,10 +120,10 @@ class CrawlingResponse(Response):
 
 
 def crawl(url: str,
-          headers: Dict[str, str] = None,
+          headers: Optional[Dict[str, str]] = None,
           user_agent: str = USER_AGENT,
-          proxies: Dict[str, str] = None,
-          session: Session = None) -> CrawlingResponse:
+          proxies: Optional[Dict[str, str]] = None,
+          session: Optional[Session] = None) -> CrawlingResponse:
     """Crawl the URL, using the provided `headers`, `user_agent`, `session` (if specified).
 
     Return the response object and its hashed content. Raise a CrawlingException on failure.

@@ -1,27 +1,19 @@
 from collections import defaultdict
-from datetime import datetime
 from multiprocessing import Pool
 from pathlib import Path
 from time import sleep
 from typing import NamedTuple, List, Dict, Optional
 
 import requests
-from pytz import utc
 
-from configs.crawling import INTERNET_ARCHIVE_URL, INTERNET_ARCHIVE_TIMESTAMP_FORMAT
+from configs.crawling import NUMBER_URLS, INTERNET_ARCHIVE_URL, INTERNET_ARCHIVE_TIMESTAMP_FORMAT, TIMESTAMPS
 from configs.database import get_database_cursor, setup
 from configs.utils import get_absolute_tranco_file_path, get_tranco_data
 from data_collection.crawling import reset_failed_crawls, partition_jobs, crawl, CrawlingException
 
 WORKERS = 8
 
-TODAY = datetime.now(utc)
-TIMESTAMPS = [
-    datetime(year, month, 15, 12, tzinfo=utc)
-    for year in range(2016, TODAY.year + 1)
-    for month in [1, 4, 7, 10]
-    if datetime(year, month, 15, 12, tzinfo=utc) <= TODAY
-]
+TIMESTAMPS = tuple(timestamp.strftime(INTERNET_ARCHIVE_TIMESTAMP_FORMAT) for timestamp in TIMESTAMPS)
 
 TABLE_NAME = "archive_data_{timestamp}"
 
@@ -56,7 +48,9 @@ def worker(jobs: List[ArchiveJob]) -> None:
                 """, (tranco_id, domain, url, error.to_json()))
 
 
-def prepare_jobs(tranco_file: Path, timestamps: List[str], n: int = 20000) -> List[ArchiveJob]:
+def prepare_jobs(tranco_file: Path = get_absolute_tranco_file_path(),
+                 timestamps: List[str] = TIMESTAMPS,
+                 n: int = NUMBER_URLS) -> List[ArchiveJob]:
     """Generate ArchiveJob list for Tranco file, timestamps, and max domains per timestamp."""
     worked_urls = defaultdict(set)
     for timestamp in timestamps:
@@ -79,12 +73,11 @@ def run_jobs(jobs: List[ArchiveJob]) -> None:
 
 
 def main():
-    timestamps = [timestamp.strftime(INTERNET_ARCHIVE_TIMESTAMP_FORMAT) for timestamp in TIMESTAMPS]
-    for timestamp in timestamps:
+    for timestamp in TIMESTAMPS:
         setup(TABLE_NAME.format(timestamp=timestamp))
 
     # Prepare and execute the crawl jobs
-    jobs = prepare_jobs(get_absolute_tranco_file_path(), timestamps)
+    jobs = prepare_jobs()
     run_jobs(jobs)
 
 
