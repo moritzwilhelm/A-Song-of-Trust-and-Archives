@@ -3,7 +3,7 @@ from multiprocessing import Process, pool
 from typing import List, Dict, Optional
 
 from configs.crawling import TIMESTAMPS
-from data_collection.collect_archive_proximity_set import crawl_web_archive_cdx, crawl_proximity_sets
+from data_collection.collect_archive_proximity_sets import crawl_web_archive_cdx, crawl_proximity_sets
 from data_collection.crawling import partition_jobs
 
 
@@ -24,11 +24,6 @@ class NoDaemonPool(pool.Pool):
     Process = NoDaemonProcess
 
 
-def build_proxies(ports: List[int]) -> List[Optional[Dict[str, str]]]:
-    """Create the set of proxies based on the provided `ports`."""
-    return [dict(http=f"socks5://localhost:{port}", https=f"socks5://localhost:{port}") for port in ports] + [None]
-
-
 def parse_args() -> Arguments:
     """Parse command line arguments for starting crawlers distributed over different proxies."""
     parser = ArgumentParser(description='Start archive crawlers and distribute over proxies.')
@@ -37,6 +32,11 @@ def parse_args() -> Arguments:
     parser.add_argument('-p', '--ports', metavar='<port>', type=int, nargs='*', default=set(),
                         help='an open socks proxy port')
     return parser.parse_args()
+
+
+def build_proxies(ports: List[int]) -> List[Optional[Dict[str, str]]]:
+    """Create the set of proxies based on the provided `ports`."""
+    return [dict(http=f"socks5://localhost:{port}", https=f"socks5://localhost:{port}") for port in ports] + [None]
 
 
 def crawl_web_archive_cdx_worker(timestamps, proxy):
