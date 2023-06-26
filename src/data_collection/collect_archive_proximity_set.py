@@ -3,19 +3,23 @@ from itertools import chain
 from multiprocessing import Pool
 from pathlib import Path
 from time import sleep
-from typing import NamedTuple, List, Tuple, Optional, Dict, Set
+from typing import NamedTuple, List, Optional, Dict
 
 import requests
 from psycopg2.extras import Json
 from pytz import utc
 from requests import Session, JSONDecodeError
 
-from configs.crawling import NUMBER_URLS, INTERNET_ARCHIVE_TIMESTAMP_FORMAT, TIMESTAMPS
+from configs.crawling import NUMBER_URLS, INTERNET_ARCHIVE_TIMESTAMP_FORMAT, TIMESTAMPS, INTERNET_ARCHIVE_URL
 from configs.database import get_database_cursor
 from configs.utils import get_absolute_tranco_file_path, get_tranco_data
-from data_collection.crawling import crawl, partition_jobs, CrawlingException
+from data_collection.collect_archive_data import WORKERS, ArchiveJob, worker as archive_worker
+from data_collection.crawling import setup, crawl, partition_jobs, CrawlingException, reset_failed_crawls
 
-WORKERS = 2
+CANDIDATES_WORKERS = 2
+
+TABLE_NAME = 'HISTORICAL_DATA_PROXIMITY_SETS'
+CANDIDATES_TABLE_NAME = 'PROXIMITY_SET_CANDIDATES'
 
 CDX_REQUEST = "https://web.archive.org/cdx/search/cdx" + \
               "?url={url}&output=json&fl=timestamp&filter=!statuscode:3..&from={from_timestamp}&to={to_timestamp}"
@@ -34,7 +38,7 @@ def setup_candidates_lists_table() -> None:
     """Create proximity set candidates database table and create relevant indexes."""
     with get_database_cursor() as cursor:
         cursor.execute(f"""
-            CREATE TABLE IF NOT EXISTS PROXIMITY_SET_CANDIDATES (
+            CREATE TABLE IF NOT EXISTS {CANDIDATES_TABLE_NAME} (
                 id SERIAL PRIMARY KEY,
                 tranco_id INTEGER,
                 domain VARCHAR(128),
@@ -47,16 +51,16 @@ def setup_candidates_lists_table() -> None:
 
         for column in ['tranco_id', 'domain', 'url', 'timestamp', 'candidates', 'error']:
             cursor.execute(f"""
-                CREATE INDEX IF NOT EXISTS PROXIMITY_SET_CANDIDATES_{column}_idx ON PROXIMITY_SET_CANDIDATES ({column})
+                CREATE INDEX IF NOT EXISTS {CANDIDATES_TABLE_NAME}_{column}_idx ON {CANDIDATES_TABLE_NAME} ({column})
             """)
 
 
-def reset_failed_crawls() -> Set[Tuple[datetime, str]]:
+def reset_failed_cdx_crawls() -> Dict[datetime, str]:
     """Delete all crawling results with an error."""
     with get_database_cursor(autocommit=True) as cursor:
-        cursor.execute("DELETE FROM PROXIMITY_SET_CANDIDATES WHERE error IS NOT NULL")
-        cursor.execute("SELECT timestamp, url FROM PROXIMITY_SET_CANDIDATES")
-        return set(cursor.fetchall())
+        cursor.execute(f"DELETE FROM {CANDIDATES_TABLE_NAME} WHERE error IS NOT NULL")
+        cursor.execute(f"SELECT timestamp, tranco_id FROM {CANDIDATES_TABLE_NAME}")
+        return dict(cursor.fetchall())
 
 
 def find_candidates(url: str,
@@ -89,7 +93,7 @@ def find_candidates(url: str,
     return timestamps[:n]
 
 
-def worker(jobs: List[CdxJob]) -> None:
+def cdx_worker(jobs: List[CdxJob]) -> None:
     """Crawl the CDX server for all provided `urls` and `timestamps` and store the responses in the database."""
     session = requests.Session()
     with get_database_cursor(autocommit=True) as cursor:
@@ -97,13 +101,13 @@ def worker(jobs: List[CdxJob]) -> None:
             sleep(0.2)
             try:
                 candidates = find_candidates(url, timestamp, 25, proxies, session)
-                cursor.execute("""
-                    INSERT INTO PROXIMITY_SET_CANDIDATES (tranco_id, domain, url, timestamp, candidates)
+                cursor.execute(f"""
+                    INSERT INTO {CANDIDATES_TABLE_NAME} (tranco_id, domain, url, timestamp, candidates)
                     VALUES (%s, %s, %s, %s, %s)
                 """, (tranco_id, domain, url, timestamp, Json(candidates)))
             except CrawlingException as error:
-                cursor.execute("""
-                    INSERT INTO PROXIMITY_SET_CANDIDATES (tranco_id, domain, url, timestamp, error)
+                cursor.execute(f"""
+                    INSERT INTO {CANDIDATES_TABLE_NAME} (tranco_id, domain, url, timestamp, error)
                     VALUES (%s, %s, %s, %s, %s)
                 """, (tranco_id, domain, url, timestamp, error.to_json()))
 
@@ -113,21 +117,55 @@ def crawl_web_archive_cdx(tranco_file: Path = get_absolute_tranco_file_path(),
                           n: int = NUMBER_URLS,
                           proxies: Optional[Dict[str, str]] = None) -> None:
     """Crawl the Internet Archive CDX server for candidates for each (url, timestamp) proximity set."""
-    worked_jobs = reset_failed_crawls()
+    worked_jobs = reset_failed_cdx_crawls()
 
     jobs = [
         CdxJob(timestamp, tranco_id, domain, url, proxies)
-        for tranco_id, domain, url in get_tranco_data(tranco_file, n) for timestamp in timestamps
-        if (timestamp, url) not in worked_jobs
+        for tranco_id, domain, url in get_tranco_data(tranco_file, n)
+        for timestamp in timestamps
+        if tranco_id not in worked_jobs[timestamp]
     ]
 
+    with Pool(CANDIDATES_WORKERS) as pool:
+        pool.map(cdx_worker, partition_jobs(jobs, CANDIDATES_WORKERS))
+
+
+def proximity_sets_worker(jobs: List[ArchiveJob]) -> None:
+    """Wrapper function for the Internet Archive worker that fixes the table name to `TABLE_NAME`."""
+    return archive_worker(jobs, table_name=TABLE_NAME)
+
+
+def crawl_proximity_sets(timestamps: List[datetime] = TIMESTAMPS,
+                         proxies: Optional[Dict[str, str]] = None,
+                         n: int = 10) -> None:
+    """Crawl the Internet Archive for the `n` closest candidates of the proximity set."""
+    worked_jobs = reset_failed_crawls(TABLE_NAME)
+    jobs = []
+    with get_database_cursor() as cursor:
+        for timestamp in timestamps:
+            cursor.execute(f"""
+                SELECT tranco_id, domain, url, candidates FROM {CANDIDATES_TABLE_NAME} 
+                WHERE timestamp=%s AND candidates!='[]'
+            """, (timestamp,))
+
+            jobs += [
+                ArchiveJob(ts, tid, domain, INTERNET_ARCHIVE_URL.format(timestamp=timestamp_str, url=url), proxies)
+                for tid, domain, url, candidates in cursor.fetchall()
+                for timestamp_str in candidates[:n]
+                for ts in (datetime.strptime(timestamp_str, INTERNET_ARCHIVE_TIMESTAMP_FORMAT),)
+                if tid not in worked_jobs[ts]
+            ]
+
     with Pool(WORKERS) as pool:
-        pool.map(worker, partition_jobs(jobs, WORKERS))
+        pool.map(proximity_sets_worker, partition_jobs(jobs, WORKERS))
 
 
 def main():
-    setup_candidates_lists_table()
-    crawl_web_archive_cdx()
+    # setup_candidates_lists_table()
+    # crawl_web_archive_cdx()
+
+    setup(TABLE_NAME)
+    crawl_proximity_sets()
 
 
 if __name__ == '__main__':

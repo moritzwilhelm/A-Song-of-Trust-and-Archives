@@ -3,7 +3,7 @@ from multiprocessing import Process, pool
 from typing import List, Dict, Optional
 
 from configs.crawling import TIMESTAMPS
-from data_collection.collect_archive_proximity_set import crawl_web_archive_cdx
+from data_collection.collect_archive_proximity_set import crawl_web_archive_cdx, crawl_proximity_sets
 from data_collection.crawling import partition_jobs
 
 
@@ -31,8 +31,8 @@ def build_proxies(ports: List[int]) -> List[Optional[Dict[str, str]]]:
 
 def parse_args() -> Arguments:
     """Parse command line arguments for starting crawlers distributed over different proxies."""
-    parser = ArgumentParser(description='Start archive crawlers and distribute over .')
-    parser.add_argument('crawl_type', metavar='<crawl_type>', choices=['proximity_set_indexes'],
+    parser = ArgumentParser(description='Start archive crawlers and distribute over proxies.')
+    parser.add_argument('crawl_type', metavar='<crawl_type>', choices=['proximity_set_indexes', 'proximity_sets'],
                         help='the type of crawl to start')
     parser.add_argument('-p', '--ports', metavar='<port>', type=int, nargs='*', default=set(),
                         help='an open socks proxy port')
@@ -50,12 +50,20 @@ def start_collect_archive_proximity_set_indexes(proxies: List[Optional[Dict[str,
         nd_pool.starmap(crawl_web_archive_cdx_worker, zip(partition_jobs(list(TIMESTAMPS), len(proxies)), proxies))
 
 
+def start_collect_archive_proximity_sets(proxies: List[Optional[Dict[str, str]]]) -> None:
+    """Start crawling the Internet Archive CDX server with the provided set of proxies."""
+    with NoDaemonPool(len(proxies)) as nd_pool:
+        nd_pool.starmap(crawl_proximity_sets, zip(partition_jobs(list(TIMESTAMPS), len(proxies)), proxies))
+
+
 def main():
     args = parse_args()
     proxies = build_proxies(args.ports)
 
     if args.crawl_type == 'proximity_set_indexes':
         start_collect_archive_proximity_set_indexes(proxies)
+    elif args.crawl_type == 'proximity_sets':
+        start_collect_archive_proximity_sets(proxies)
 
 
 if __name__ == '__main__':
