@@ -1,3 +1,4 @@
+from collections import defaultdict
 from datetime import datetime, timedelta
 from itertools import chain
 from multiprocessing import Pool
@@ -55,12 +56,12 @@ def setup_candidates_lists_table() -> None:
             """)
 
 
-def reset_failed_cdx_crawls() -> Dict[datetime, str]:
+def reset_failed_cdx_crawls() -> Dict[datetime, List[int]]:
     """Delete all crawling results with an error."""
     with get_database_cursor(autocommit=True) as cursor:
         cursor.execute(f"DELETE FROM {CANDIDATES_TABLE_NAME} WHERE error IS NOT NULL")
-        cursor.execute(f"SELECT timestamp, tranco_id FROM {CANDIDATES_TABLE_NAME}")
-        return dict(cursor.fetchall())
+        cursor.execute(f"SELECT timestamp, ARRAY_AGG(tranco_id) FROM {CANDIDATES_TABLE_NAME} GROUP BY timestamp")
+        return defaultdict(list, cursor.fetchall())
 
 
 def find_candidates(url: str,
