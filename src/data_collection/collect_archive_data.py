@@ -1,4 +1,4 @@
-from collections import defaultdict
+from datetime import datetime
 from multiprocessing import Pool
 from pathlib import Path
 from time import sleep
@@ -6,28 +6,26 @@ from typing import NamedTuple, List, Dict, Optional
 
 import requests
 
-from configs.crawling import NUMBER_URLS, INTERNET_ARCHIVE_URL, INTERNET_ARCHIVE_TIMESTAMP_FORMAT, TIMESTAMPS
-from configs.database import get_database_cursor, setup
+from configs.crawling import NUMBER_URLS, INTERNET_ARCHIVE_URL, TIMESTAMPS
+from configs.database import get_database_cursor
 from configs.utils import get_absolute_tranco_file_path, get_tranco_data
-from data_collection.crawling import reset_failed_crawls, partition_jobs, crawl, CrawlingException
+from data_collection.crawling import setup, reset_failed_crawls, partition_jobs, crawl, CrawlingException
 
 WORKERS = 8
 
-TIMESTAMPS = tuple(timestamp.strftime(INTERNET_ARCHIVE_TIMESTAMP_FORMAT) for timestamp in TIMESTAMPS)
-
-TABLE_NAME = "archive_data_{timestamp}"
+TABLE_NAME = "HISTORICAL_DATA"
 
 
 class ArchiveJob(NamedTuple):
     """Represents a job for crawling the archive and storing data in the database."""
-    timestamp: str
+    timestamp: datetime
     tranco_id: int
     domain: str
     url: str
     proxies: Optional[Dict[str, str]] = None
 
 
-def worker(jobs: List[ArchiveJob]) -> None:
+def worker(jobs: List[ArchiveJob], table_name=TABLE_NAME) -> None:
     """Crawl all provided `urls` and store the responses in the database."""
     with get_database_cursor(autocommit=True) as cursor:
         session = requests.Session()
@@ -36,34 +34,29 @@ def worker(jobs: List[ArchiveJob]) -> None:
             try:
                 response = crawl(url, proxies=proxies, session=session)
                 cursor.execute(f"""
-                    INSERT INTO {TABLE_NAME.format(timestamp=timestamp)} 
-                    (tranco_id, domain, start_url, end_url, status_code, headers, content_hash, response_time) 
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                """, (tranco_id, domain, url, *response.serialized_data))
+                    INSERT INTO {table_name} 
+                    (tranco_id, domain, timestamp, start_url, end_url, status_code, headers, content_hash, response_time) 
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, (tranco_id, domain, timestamp, url, *response.serialized_data))
             except CrawlingException as error:
                 cursor.execute(f"""
-                    INSERT INTO {TABLE_NAME.format(timestamp=timestamp)} 
-                    (tranco_id, domain, start_url, headers) 
-                    VALUES (%s, %s, %s, %s)
-                """, (tranco_id, domain, url, error.to_json()))
+                    INSERT INTO {table_name} 
+                    (tranco_id, domain, timestamp, start_url, headers) 
+                    VALUES (%s, %s, %s, %s, %s)
+                """, (tranco_id, domain, timestamp, url, error.to_json()))
 
 
 def prepare_jobs(tranco_file: Path = get_absolute_tranco_file_path(),
-                 timestamps: List[str] = TIMESTAMPS,
+                 timestamps: List[datetime] = TIMESTAMPS,
                  n: int = NUMBER_URLS) -> List[ArchiveJob]:
     """Generate ArchiveJob list for Tranco file, timestamps, and max domains per timestamp."""
-    worked_urls = defaultdict(set)
-    for timestamp in timestamps:
-        worked_urls[timestamp] = reset_failed_crawls(TABLE_NAME.format(timestamp=timestamp))
-
-    jobs = []
-    for tranco_id, domain, url in get_tranco_data(tranco_file, n):
-        for timestamp in timestamps:
-            url = INTERNET_ARCHIVE_URL.format(timestamp=timestamp, url=url)
-            if url not in worked_urls[timestamp]:
-                jobs.append(ArchiveJob(timestamp, tranco_id, domain, url))
-
-    return jobs
+    worked_jobs = reset_failed_crawls(TABLE_NAME)
+    return [
+        ArchiveJob(timestamp, tranco_id, domain, INTERNET_ARCHIVE_URL.format(timestamp=timestamp, url=url))
+        for tranco_id, domain, url in get_tranco_data(tranco_file, n)
+        for timestamp in timestamps
+        if tranco_id not in worked_jobs[timestamp]
+    ]
 
 
 def run_jobs(jobs: List[ArchiveJob]) -> None:
@@ -73,8 +66,7 @@ def run_jobs(jobs: List[ArchiveJob]) -> None:
 
 
 def main():
-    for timestamp in TIMESTAMPS:
-        setup(TABLE_NAME.format(timestamp=timestamp))
+    setup(TABLE_NAME)
 
     # Prepare and execute the crawl jobs
     jobs = prepare_jobs()

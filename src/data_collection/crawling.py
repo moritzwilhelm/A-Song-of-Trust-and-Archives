@@ -4,16 +4,17 @@ import random
 import signal
 import traceback
 from contextlib import contextmanager
+from datetime import datetime
 from hashlib import sha256
 from itertools import cycle
 from time import time_ns
 from types import FrameType
-from typing import Any, Set, List, Tuple, Dict, Optional
+from typing import Any, List, Tuple, Dict, Optional
 
 from psycopg2.extras import Json
 from requests import Session, RequestException, Response
 
-from configs.crawling import USER_AGENT
+from configs.crawling import USER_AGENT, TODAY
 from configs.database import STORAGE, get_database_cursor
 
 
@@ -25,29 +26,31 @@ def setup(table_name: str) -> None:
                 id SERIAL PRIMARY KEY,
                 tranco_id INTEGER,
                 domain VARCHAR(128),
+                timestamp TIMESTAMPTZ DEFAULT NULL,
                 start_url VARCHAR(128),
                 end_url TEXT DEFAULT NULL,
                 status_code INT DEFAULT NULL,
                 headers JSONB DEFAULT NULL,
                 content_hash VARCHAR(64) DEFAULT NULL,
                 response_time NUMERIC DEFAULT NULL,
-                timestamp TIMESTAMPTZ DEFAULT NOW()
+                crawl_datetime TIMESTAMPTZ DEFAULT NOW()
             );
         """)
 
-        for column in ['tranco_id', 'domain', 'start_url', 'end_url', 'status_code', 'content_hash', 'response_time',
-                       'timestamp']:
+        for column in ['tranco_id', 'domain', 'timestamp', 'start_url', 'end_url', 'status_code', 'content_hash',
+                       'response_time', 'crawl_datetime']:
             cursor.execute(f"CREATE INDEX IF NOT EXISTS {table_name}_{column}_idx ON {table_name} ({column})")
 
 
-def reset_failed_crawls(table_name: str) -> Set[str]:
+def reset_failed_crawls(table_name: str, date: datetime = TODAY.date()) -> Dict[datetime, int]:
     """Delete all crawling results whose status code is not 200 and return the affected start URLs."""
     with get_database_cursor(autocommit=True) as cursor:
         cursor.execute(
-            f"DELETE FROM {table_name} WHERE timestamp::date='today' and status_code IS NULL OR status_code=429"
+            f"DELETE FROM {table_name} WHERE crawl_datetime::date=%s and status_code IS NULL OR status_code=429",
+            (date,)
         )
-        cursor.execute(f"SELECT start_url FROM {table_name} WHERE timestamp::date='today'")
-        return {x for x, in cursor.fetchall()}
+        cursor.execute(f"SELECT timestamp, tranco_id FROM {table_name} WHERE crawl_datetime::date=%s", (date,))
+        return dict(cursor.fetchall())
 
 
 def partition_jobs(jobs: List[Any], n: int) -> List[List[Any]]:
