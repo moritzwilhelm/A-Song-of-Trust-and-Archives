@@ -48,11 +48,12 @@ def worker(jobs: List[ArchiveJob], table_name=TABLE_NAME) -> None:
 
 def prepare_jobs(tranco_file: Path = get_absolute_tranco_file_path(),
                  timestamps: List[datetime] = TIMESTAMPS,
+                 proxies: Optional[Dict[str, str]] = None,
                  n: int = NUMBER_URLS) -> List[ArchiveJob]:
     """Generate ArchiveJob list for Tranco file, timestamps, and max domains per timestamp."""
     worked_jobs = reset_failed_crawls(TABLE_NAME)
     return [
-        ArchiveJob(timestamp, tranco_id, domain, INTERNET_ARCHIVE_URL.format(timestamp=timestamp, url=url))
+        ArchiveJob(timestamp, tranco_id, domain, INTERNET_ARCHIVE_URL.format(timestamp=timestamp, url=url), proxies)
         for tranco_id, domain, url in get_tranco_data(tranco_file, n)
         for timestamp in timestamps
         if tranco_id not in worked_jobs[timestamp]

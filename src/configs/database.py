@@ -3,7 +3,7 @@ from contextlib import contextmanager
 from typing import Any
 
 from psycopg2 import connect
-from psycopg2._json import register_default_jsonb
+from psycopg2.extras import register_default_jsonb
 from requests.structures import CaseInsensitiveDict
 
 # DATABASE
