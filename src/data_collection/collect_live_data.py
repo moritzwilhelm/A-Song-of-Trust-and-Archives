@@ -1,3 +1,4 @@
+from itertools import chain
 from multiprocessing import Pool
 from pathlib import Path
 from typing import NamedTuple, List
@@ -40,7 +41,7 @@ def worker(jobs: List[LiveJob], table_name=TABLE_NAME) -> None:
 
 def prepare_jobs(tranco_file: Path = get_absolute_tranco_file_path(), n: int = NUMBER_URLS) -> List[LiveJob]:
     """Build a list of LiveJob instances for the given Tranco file and maximum number of domains."""
-    worked_jobs = reset_failed_crawls(TABLE_NAME).values()
+    worked_jobs = set(chain.from_iterable(reset_failed_crawls(TABLE_NAME).values()))
     return [LiveJob(tid, domain, url) for tid, domain, url in get_tranco_data(tranco_file, n) if tid not in worked_jobs]
 
 
