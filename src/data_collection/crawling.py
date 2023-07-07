@@ -47,7 +47,7 @@ def reset_failed_crawls(table_name: str, date: datetime = TODAY.date()) -> Dict[
     """Delete all crawling results whose status code is not 200 and return the affected start URLs."""
     with get_database_cursor(autocommit=True) as cursor:
         cursor.execute(f"""
-            DELETE FROM {table_name} WHERE crawl_datetime::date=%s AND status_code IS NULL OR status_code=429
+            DELETE FROM {table_name} WHERE crawl_datetime::date=%s AND (status_code IS NULL OR status_code=429)
         """, (date,))
 
         cursor.execute(f"""
