@@ -31,9 +31,9 @@ def plot_live(input_path: Path,
         results = json.load(f)
 
     for h in RELEVANT_HEADERS:
-        total = sum(results[url][f"USES-{h}"] for url in results)
+        total = sum(results[url][h]['DEPLOYS'] for url in results)
         data = [
-            sum(results[url][f"STABLE-{h}"][str(date)] for url in results if results[url][f"USES-{h}"]) / total
+            sum(results[url][h][str(date)] for url in results if results[url][h]['DEPLOYS']) / total
             for date in (start + timedelta(days=i) for i in range(num_days))]
         plt.plot(data, ls=STYLE[line_id][1:], marker=STYLE[line_id][0], label=HEADER_ABBREVIATION[h])
         line_id += 1

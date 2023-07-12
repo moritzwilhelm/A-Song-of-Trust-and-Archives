@@ -3,6 +3,7 @@ from contextlib import contextmanager
 from typing import Any
 
 from psycopg2 import connect
+from psycopg2.extensions import connection
 from psycopg2.extras import register_default_jsonb
 from requests.structures import CaseInsensitiveDict
 
@@ -23,18 +24,24 @@ def json_loads_ci(*args: Any, **kwargs: Any) -> Any:
     return CaseInsensitiveDict(deserialized_object) if isinstance(deserialized_object, dict) else deserialized_object
 
 
+def get_database_connection(autocommit: bool = False) -> connection:
+    """Establish a connection to the database and return the connection object."""
+    conn = connect(host=DB_HOST, port=DB_PORT, database=DB_NAME, user=DB_USER, password=DB_PWD)
+    conn.autocommit = autocommit
+    register_default_jsonb(conn, loads=json_loads_ci)
+    return conn
+
+
 @contextmanager
 def get_database_cursor(autocommit: bool = False):
     """Establish a connection to the database and yield an open cursor."""
-    connection = connect(host=DB_HOST, port=DB_PORT, database=DB_NAME, user=DB_USER, password=DB_PWD)
-    connection.autocommit = autocommit
-    register_default_jsonb(connection, loads=json_loads_ci)
+    conn = get_database_connection(autocommit)
     try:
         if autocommit:
-            with connection.cursor() as cursor:
+            with conn.cursor() as cursor:
                 yield cursor
         else:
-            with connection, connection.cursor() as cursor:
+            with conn, conn.cursor() as cursor:
                 yield cursor
     finally:
-        connection.close()
+        conn.close()

@@ -1,11 +1,11 @@
 import json
 from collections import defaultdict
 from datetime import date as date_type, timedelta, datetime
-from typing import Callable, List, Dict
+from typing import Callable, List, Dict, Tuple, Optional, Any
 
 from tqdm import tqdm
 
-from analysis.analysis_utils import parse_origin, get_aggregated_date
+from analysis.analysis_utils import sql_to_dataframe, parse_origin, get_aggregated_date
 from analysis.header_utils import normalize_headers, classify_headers
 from analysis.live.stability_enums import Status
 from configs.analysis import RELEVANT_HEADERS
@@ -18,44 +18,39 @@ DATE = "20230501"
 ARCHIVE_TABLE_NAME = f"archive_data_{DATE}"
 
 
-def compute_live_data_stability(urls: List[str],
-                                start: date_type = get_aggregated_date(LIVE_TABLE_NAME, 'MIN'),
-                                end: date_type = get_aggregated_date(LIVE_TABLE_NAME, 'MAX'),
-                                normalization_function: Callable[[Dict, str], Dict] = normalize_headers) -> None:
+def analyze_live_data(urls: List[Tuple[int, str, str]],
+                      start: date_type = get_aggregated_date(LIVE_TABLE_NAME, 'MIN'),
+                      end: date_type = get_aggregated_date(LIVE_TABLE_NAME, 'MAX'),
+                      aggregation_function: Callable[[Dict, Optional[str]], Any] = normalize_headers) -> None:
     """Compute the stability of (crawled) live data from `start` date up to (inclusive) `end` date."""
     assert start <= end
 
-    live_data = defaultdict(dict)
-    with get_database_cursor() as cursor:
-        cursor.execute(f"""
-            SELECT start_url, timestamp::date, headers, end_url 
+    live_data = sql_to_dataframe(f"""
+            SELECT tranco_id, timestamp::date, headers, end_url
             FROM {LIVE_TABLE_NAME}
             WHERE status_code=200 AND timestamp::date BETWEEN %s AND %s
         """, (start, end))
-        for start_url, date, *data in cursor.fetchall():
-            live_data[start_url][date] = data
+    live_data.set_index(['tranco_id', 'timestamp'], inplace=True)
 
-    result = defaultdict(lambda: defaultdict(dict))
-    for url in tqdm(urls):
+    live_data[aggregation_function.__name__] = live_data.apply(
+        lambda row: aggregation_function(row.headers, parse_origin(row.end_url)), axis=1)
+
+    result = {tid: {header: {'DEPLOYS': False} for header in RELEVANT_HEADERS} for tid, _, _ in urls}
+    for tid, _, _ in tqdm(urls):
         seen_values = defaultdict(set)
-        for header in RELEVANT_HEADERS:
-            result[url][f"USES-{header}"] = False
-        for date in (start + timedelta(days=i) for i in range((end - start).days + 1)):
-            if date not in live_data[url]:
-                previous_day = str(date - timedelta(days=1))
+        for timestamp in (start + timedelta(i) for i in range((end - start).days + 1)):
+            if (tid, timestamp) in live_data.index:
+                headers, aggregated_headers = live_data.loc[tid, timestamp][['headers', aggregation_function.__name__]]
                 for header in RELEVANT_HEADERS:
-                    result[url][f"STABLE-{header}"][str(date)] = result[url][f"STABLE-{header}"].get(previous_day, True)
-                continue
+                    seen_values[header].add(aggregated_headers[header])
+                    result[tid][header][str(timestamp)] = len(seen_values[header]) == 1
+                    result[tid][header]['DEPLOYS'] |= header in headers
+            else:
+                previous_timestamp = str(timestamp - timedelta(days=1))
+                for header in RELEVANT_HEADERS:
+                    result[tid][header][str(timestamp)] = result[tid][header].get(previous_timestamp, True)
 
-            headers, end_url = live_data[url][date]
-            for header, value in normalization_function(headers, parse_origin(end_url)).items():
-                seen_values[header].add(value)
-
-            for header in RELEVANT_HEADERS:
-                result[url][f"STABLE-{header}"][str(date)] = len(seen_values[header]) == 1
-                result[url][f"USES-{header}"] |= header in headers
-
-    with open(join_with_json_path(f"STABILITY-{LIVE_TABLE_NAME}-{normalization_function.__name__}.json"), 'w') as file:
+    with open(join_with_json_path(f"STABILITY-{LIVE_TABLE_NAME}-{aggregation_function.__name__}.json"), 'w') as file:
         json.dump(result, file, indent=2, sort_keys=True)
 
 
@@ -121,14 +116,14 @@ def compute_archive_snapshot_stability(urls: List[str],
 
 def main():
     # LIVE DATA
-    compute_live_data_stability(
-        [url for _, _, url in get_tranco_data()],
-        normalization_function=normalize_headers
+    analyze_live_data(
+        get_tranco_data(),
+        aggregation_function=normalize_headers
     )
 
-    compute_live_data_stability(
-        [url for _, _, url in get_tranco_data()],
-        normalization_function=classify_headers
+    analyze_live_data(
+        get_tranco_data(),
+        aggregation_function=classify_headers
     )
 
     # ARCHIVE DATA
