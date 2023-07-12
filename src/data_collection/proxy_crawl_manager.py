@@ -1,11 +1,12 @@
 from argparse import ArgumentParser, Namespace as Arguments
-from datetime import datetime, timedelta
+from datetime import datetime
 from multiprocessing import Process, pool
 from typing import List, Dict, Optional
 
 from pytz import utc
 
 from configs.crawling import TIMESTAMPS, TODAY
+from configs.utils import date_range
 from data_collection.collect_archive_data import prepare_jobs as prepare_archive_jobs, run_jobs as run_archive_jobs
 from data_collection.collect_archive_proximity_sets import crawl_web_archive_cdx, crawl_proximity_sets
 from data_collection.crawling import partition_jobs
@@ -71,9 +72,9 @@ START_TIMESTAMP = datetime(2023, 7, 1, 12, tzinfo=utc)
 
 
 def start_collect_daily_archive_data(proxies: List[Optional[Dict[str, str]]]) -> None:
-    """Start crawling the Internet Archive for all dates in [START_DATE, START_DATE + 15[, distributing over proxies."""
-    relevant_timestamps = [START_TIMESTAMP + timedelta(days=i)
-                           for i in range(min((TODAY.date() - START_TIMESTAMP.date()).days + 1, 15))]
+    """Start crawling the Internet Archive for all dates in [START_DATE, START_DATE + 14], distributing over proxies."""
+    relevant_timestamps = list(filter(lambda date: (TODAY.date() - date).days < 15,
+                                      date_range(START_TIMESTAMP.date(), TODAY.date(), 15)))
     with NoDaemonPool(len(proxies)) as nd_pool:
         nd_pool.starmap(crawl_daily_web_archive_worker, zip(partition_jobs(relevant_timestamps, len(proxies)), proxies))
 
