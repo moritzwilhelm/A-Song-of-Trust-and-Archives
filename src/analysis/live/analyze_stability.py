@@ -5,17 +5,17 @@ from typing import Callable, List, Dict
 
 from tqdm import tqdm
 
-from analysis.analysis_utils import get_tranco_urls, parse_origin, get_aggregated_date
+from analysis.analysis_utils import parse_origin, get_aggregated_date
 from analysis.header_utils import normalize_headers, classify_headers
 from analysis.live.stability_enums import Status
 from configs.analysis import RELEVANT_HEADERS
 from configs.crawling import INTERNET_ARCHIVE_URL
 from configs.database import get_database_cursor
-from configs.utils import join_with_json_path, get_absolute_tranco_file_path
-from data_collection.collect_archive_data import DATES, TABLE_NAME as ARCHIVE_TABLE_NAME
+from configs.utils import join_with_json_path, get_tranco_data
 from data_collection.collect_live_data import TABLE_NAME as LIVE_TABLE_NAME
 
-DATE = DATES[0]
+DATE = "20230501"
+ARCHIVE_TABLE_NAME = f"archive_data_{DATE}"
 
 
 def compute_live_data_stability(urls: List[str],
@@ -38,7 +38,8 @@ def compute_live_data_stability(urls: List[str],
     result = defaultdict(lambda: defaultdict(dict))
     for url in tqdm(urls):
         seen_values = defaultdict(set)
-        result[url] |= {f"USES-{header}": False for header in RELEVANT_HEADERS}
+        for header in RELEVANT_HEADERS:
+            result[url][f"USES-{header}"] = False
         for date in (start + timedelta(days=i) for i in range((end - start).days + 1)):
             if date not in live_data[url]:
                 previous_day = str(date - timedelta(days=1))
@@ -78,7 +79,7 @@ def compute_archive_snapshot_stability(urls: List[str],
     for url in tqdm(urls):
         previous_status = Status.MISSING
         previous_snapshot = None
-        start_url = INTERNET_ARCHIVE_URL.format(date=DATE, url=url)
+        start_url = INTERNET_ARCHIVE_URL.format(timestamp=DATE, url=url)
         for date in (start + timedelta(days=i) for i in range((end - start).days + 1)):
             if date not in archive_data[start_url]:
                 if previous_status in (Status.ADDED, Status.MODIFIED):
@@ -114,28 +115,32 @@ def compute_archive_snapshot_stability(urls: List[str],
             result[url][str(date)] = status
             previous_status = status
 
-    with open(join_with_json_path(f"STABILITY-{ARCHIVE_TABLE_NAME}-snapshots.json"), 'w') as file:
+    with open(join_with_json_path(f"STABILITY-{ARCHIVE_TABLE_NAME}-snapshots-{start}.json"), 'w') as file:
         json.dump(result, file, indent=2, sort_keys=True)
 
 
-if __name__ == '__main__':
+def main():
     # LIVE DATA
     compute_live_data_stability(
-        get_tranco_urls(get_absolute_tranco_file_path()),
+        [url for _, _, url in get_tranco_data()],
         normalization_function=normalize_headers
     )
 
     compute_live_data_stability(
-        get_tranco_urls(get_absolute_tranco_file_path()),
+        [url for _, _, url in get_tranco_data()],
         normalization_function=classify_headers
     )
 
     # ARCHIVE DATA
     compute_archive_snapshot_stability(
-        get_tranco_urls(get_absolute_tranco_file_path())
+        [url for _, _, url in get_tranco_data()],
     )
 
-    # compute_archive_snapshot_stability(
-    #     get_tranco_urls(get_absolute_tranco_file_path()),
-    #     start=get_aggregated_date(ARCHIVE_TABLE_NAME, 'MIN') + timedelta(days=1)
-    # )
+    compute_archive_snapshot_stability(
+        [url for _, _, url in get_tranco_data()],
+        start=get_aggregated_date(ARCHIVE_TABLE_NAME, 'MIN') + timedelta(days=1)
+    )
+
+
+if __name__ == '__main__':
+    main()

@@ -1,42 +1,44 @@
 import re
 from typing import Dict, Union, Tuple, Set, List
 
+from requests.structures import CaseInsensitiveDict
+
 from analysis.security_enums import XFO, CspFA, CspXSS, CspTLS, HSTSAge, HSTSSub, HSTSPreload, RP, COOP, CORP, COEP, \
     max_enum
 
 
-def normalize_headers(headers: Dict, origin: str = None) -> Dict:
-    return {
-        'x-frame-options': normalize_xfo(
-            headers['x-frame-options']) if 'x-frame-options' in headers else '<MISSING>',
-        'content-security-policy': normalize_csp(
-            headers['content-security-policy']) if 'content-security-policy' in headers else '<MISSING>',
-        'strict-transport-security': normalize_hsts(
-            headers['strict-transport-security']) if 'strict-transport-security' in headers else '<MISSING>',
-        'referrer-policy': normalize_referrer_policy(
-            headers['referrer-policy']) if 'referrer-policy' in headers else '<MISSING>',
-        'permissions-policy': normalize_permissions_policy(
-            headers['permissions-policy']) if 'permissions-policy' in headers else '<MISSING>',
-        'cross-origin-opener-policy': normalize_coop(
-            headers['cross-origin-opener-policy']) if 'cross-origin-opener-policy' in headers else '<MISSING>',
-        'cross-origin-resource-policy': normalize_corp(
-            headers['cross-origin-resource-policy']) if 'cross-origin-resource-policy' in headers else '<MISSING>',
-        'cross-origin-embedder-policy': normalize_coep(
-            headers['cross-origin-embedder-policy']) if 'cross-origin-embedder-policy' in headers else '<MISSING>'
-    }
+def normalize_headers(headers: Dict, origin: str = None) -> CaseInsensitiveDict:
+    return CaseInsensitiveDict({
+        'X-Frame-Options': normalize_xfo(
+            headers['X-Frame-Options']) if 'X-Frame-Options' in headers else '<MISSING>',
+        'Content-Security-Policy': normalize_csp(
+            headers['Content-Security-Policy']) if 'Content-Security-Policy' in headers else '<MISSING>',
+        'Strict-Transport-Security': normalize_hsts(
+            headers['Strict-Transport-Security']) if 'Strict-Transport-Security' in headers else '<MISSING>',
+        'Referrer-Policy': normalize_referrer_policy(
+            headers['Referrer-Policy']) if 'Referrer-Policy' in headers else '<MISSING>',
+        'Permissions-Policy': normalize_permissions_policy(
+            headers['Permissions-Policy']) if 'Permissions-Policy' in headers else '<MISSING>',
+        'Cross-Origin-Opener-Policy': normalize_coop(
+            headers['Cross-Origin-Opener-Policy']) if 'Cross-Origin-Opener-Policy' in headers else '<MISSING>',
+        'Cross-Origin-Resource-Policy': normalize_corp(
+            headers['Cross-Origin-Resource-Policy']) if 'Cross-Origin-Resource-Policy' in headers else '<MISSING>',
+        'Cross-Origin-Embedder-Policy': normalize_coep(
+            headers['Cross-Origin-Embedder-Policy']) if 'Cross-Origin-Embedder-Policy' in headers else '<MISSING>'
+    })
 
 
-def classify_headers(headers: Dict, origin: str = None) -> Dict:
-    return {
-        'x-frame-options': classify_xfo(headers.get('x-frame-options', '')),
-        'content-security-policy': classify_csp(headers.get('content-security-policy', ''), origin),
-        'strict-transport-security': classify_hsts(headers.get('strict-transport-security', '')),
-        'referrer-policy': classify_referrer_policy(headers.get('referrer-policy', '')),
-        'permissions-policy': classify_permissions_policy(headers.get('permissions-policy', '')),
-        'cross-origin-opener-policy': classify_coop(headers.get('cross-origin-opener-policy', '')),
-        'cross-origin-resource-policy': classify_corp(headers.get('cross-origin-resource-policy', '')),
-        'cross-origin-embedder-policy': classify_coep(headers.get('cross-origin-embedder-policy', ''))
-    }
+def classify_headers(headers: Dict, origin: str = None) -> CaseInsensitiveDict:
+    return CaseInsensitiveDict({
+        'X-Frame-Options': classify_xfo(headers.get('X-Frame-Options', '')),
+        'Content-Security-Policy': classify_csp(headers.get('Content-Security-Policy', ''), origin),
+        'Strict-Transport-Security': classify_hsts(headers.get('Strict-Transport-Security', '')),
+        'Referrer-Policy': classify_referrer_policy(headers.get('Referrer-Policy', '')),
+        'Permissions-Policy': classify_permissions_policy(headers.get('Permissions-Policy', '')),
+        'Cross-Origin-Opener-Policy': classify_coop(headers.get('Cross-Origin-Opener-Policy', '')),
+        'Cross-Origin-Resource-Policy': classify_corp(headers.get('Cross-Origin-Resource-Policy', '')),
+        'Cross-Origin-Embedder-Policy': classify_coep(headers.get('Cross-Origin-Embedder-Policy', ''))
+    })
 
 
 # ----------------------------------------------------------------------------

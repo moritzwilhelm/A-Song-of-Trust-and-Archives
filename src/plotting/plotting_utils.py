@@ -1,12 +1,12 @@
 HEADER_ABBREVIATION = {
-    'x-frame-options': 'XFO',
-    'content-security-policy': 'CSP',
-    'strict-transport-security': 'HSTS',
-    'referrer-policy': 'RP',
-    'permissions-policy': 'PP',
-    'cross-origin-opener-policy': 'COOP',
-    'cross-origin-resource-policy': 'CORP',
-    'cross-origin-embedder-policy': 'COEP'
+    'X-Frame-Options': 'XFO',
+    'Content-Security-Policy': 'CSP',
+    'Strict-Transport-Security': 'HSTS',
+    'Referrer-Policy': 'RP',
+    'Permissions-Policy': 'PP',
+    'Cross-Origin-Opener-Policy': 'COOP',
+    'Cross-Origin-Resource-Policy': 'CORP',
+    'Cross-Origin-Embedder-Policy': 'COEP'
 }
 
 STYLE = ['s-', 'o-', '^-', 's--', 'o--', '^--', 's:', 'o:', '^:', 's-.']

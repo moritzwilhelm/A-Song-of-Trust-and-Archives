@@ -4,16 +4,18 @@ from datetime import timedelta
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-import matplotlib.ticker as mtick
 import seaborn as sns
+from matplotlib.ticker import PercentFormatter
 
 from analysis.analysis_utils import get_aggregated_date
 from analysis.live.stability_enums import Status
 from configs.analysis import RELEVANT_HEADERS
 from configs.utils import join_with_json_path, join_with_plots_path
-from data_collection.collect_archive_data import TABLE_NAME as ARCHIVE_TABLE_NAME
 from data_collection.collect_live_data import TABLE_NAME as LIVE_TABLE_NAME
 from plotting.plotting_utils import HEADER_ABBREVIATION, STYLE
+
+DATE = "20230501"
+ARCHIVE_TABLE_NAME = f"archive_data_{DATE}"
 
 
 def plot_live(input_path: Path,
@@ -42,8 +44,10 @@ def plot_live(input_path: Path,
     plt.ylabel('Stable sites')
     plt.xticks(range(0, num_days, 1))
     plt.xlim(-1, num_days + 3)
-    plt.gca().yaxis.set_major_formatter(mtick.PercentFormatter(xmax=1))
+    plt.gca().yaxis.set_major_formatter(PercentFormatter(xmax=1))
+
     plt.savefig(output_path, bbox_inches='tight', dpi=300)
+
     plt.show()
     plt.clf()
 
@@ -106,30 +110,38 @@ def plot_snapshot_stability(input_path: Path,
     # ax2.yaxis.ticks.set_color(palette[4])
     ax2.set_ylabel('Sites with Updates/Deletions')
     plt.xticks(range(0, num_days, 1))
+
     plt.savefig(output_path, bbox_inches='tight', dpi=300)
+
     plt.show()
     plt.clf()
 
 
-if __name__ == '__main__':
+def main():
     # LIVE DATA
     plot_live(
         join_with_json_path('STABILITY-live_data-normalize_headers.json'),
         join_with_plots_path('STABILITY-live_data-normalize_headers.pdf')
     )
+
     plot_live(
         join_with_json_path('STABILITY-live_data-classify_headers.json'),
         join_with_plots_path('STABILITY-live_data-classify_headers.pdf')
     )
 
     # ARCHIVE DATA
+    start_date = get_aggregated_date(ARCHIVE_TABLE_NAME, 'MIN')
     plot_snapshot_stability(
-        join_with_json_path('STABILITY-archive_data_20230501-snapshots.json'),
-        join_with_plots_path('STABILITY-archive_data_20230501-snapshots.pdf')
+        join_with_json_path(f"STABILITY-archive_data_20230501-snapshots-{start_date}.json"),
+        join_with_plots_path(f"STABILITY-archive_data_20230501-snapshots-{start_date}.pdf")
     )
 
-    # plot_snapshot_stability(
-    #    join_with_json_path('STABILITY-archive_data_20230501-snapshots.json'),
-    #    join_with_plots_path('STABILITY-archive_data_20230501-snapshots.pdf'),
-    #    start=get_aggregated_date(ARCHIVE_TABLE_NAME, 'MIN') + timedelta(days=1)
-    # )
+    plot_snapshot_stability(
+        join_with_json_path(f"STABILITY-archive_data_20230501-snapshots-{start_date + timedelta(days=1)}.json"),
+        join_with_plots_path(f"STABILITY-archive_data_20230501-snapshots-{start_date + timedelta(days=1)}.pdf"),
+        start=start_date + timedelta(days=1)
+    )
+
+
+if __name__ == '__main__':
+    main()

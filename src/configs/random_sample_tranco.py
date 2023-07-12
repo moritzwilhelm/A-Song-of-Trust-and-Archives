@@ -3,7 +3,6 @@ import random
 from configs.utils import get_absolute_tranco_file_path
 
 SEED = 1337
-random.seed(SEED)
 
 
 def sample(buckets=10, domains_per_bucket=2000):
@@ -21,6 +20,7 @@ def sample(buckets=10, domains_per_bucket=2000):
 
 
 def main():
+    random.seed(SEED)
     sample()
 
 
