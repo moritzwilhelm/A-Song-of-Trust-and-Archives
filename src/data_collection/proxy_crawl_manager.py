@@ -1,11 +1,12 @@
 from argparse import ArgumentParser, Namespace as Arguments
 from datetime import datetime
 from multiprocessing import Process, pool
+from subprocess import run
 from typing import List, Dict, Optional
 
 from pytz import utc
 
-from configs.crawling import TIMESTAMPS, TODAY
+from configs.crawling import TIMESTAMPS, TODAY, SOCKS_PROXIES
 from configs.utils import date_range
 from data_collection.collect_archive_data import prepare_jobs as prepare_archive_jobs, run_jobs as run_archive_jobs
 from data_collection.collect_archive_proximity_sets import crawl_web_archive_cdx, crawl_proximity_sets
@@ -35,59 +36,74 @@ def parse_args() -> Arguments:
     parser.add_argument('crawl_type', metavar='<crawl_type>',
                         choices=['proximity_set_indexes', 'proximity_sets', 'daily_archive'],
                         help='the type of crawl to start')
-    parser.add_argument('-p', '--ports', metavar='<port>', type=int, nargs='*', default=set(),
-                        help='an open socks proxy port')
     return parser.parse_args()
 
 
-def build_proxies(ports: List[int]) -> List[Optional[Dict[str, str]]]:
-    """Create the set of proxies based on the provided `ports`."""
-    return [dict(http=f"socks5://localhost:{port}", https=f"socks5://localhost:{port}") for port in ports] + [None]
+def build_socks_proxy_configs() -> List[Optional[Dict[str, str]]]:
+    """Create the set of socks proxy configs."""
+    return [dict(http=f"socks5://localhost:{port}",
+                 https=f"socks5://localhost:{port}") for port in SOCKS_PROXIES] + [None]
+
+
+def open_socks_proxies() -> None:
+    """Open the socks proxies in the background."""
+    for port, remote in SOCKS_PROXIES.items():
+        run(['ssh', '-fnN', '-M', '-S', port, '-D', port, '-i', '~/.ssh/Proxies', remote])
+
+
+def close_socks_proxies() -> None:
+    """Close the open socks proxies in the background."""
+    for port, remote in SOCKS_PROXIES.items():
+        run(['ssh', '-S', port, '-O', 'exit', '-i', '~/.ssh/Proxies', remote])
 
 
 def crawl_web_archive_cdx_worker(timestamps: List[datetime], proxies: Optional[Dict[str, str]]) -> None:
     """Worker that initiates the Internet Archive CDX server crawl."""
-    return crawl_web_archive_cdx(timestamps=timestamps, proxies=proxies)
+    crawl_web_archive_cdx(timestamps=timestamps, proxies=proxies)
 
 
-def start_collect_archive_proximity_set_indexes(proxies: List[Optional[Dict[str, str]]]) -> None:
+def start_collect_archive_proximity_set_indexes(configs: List[Optional[Dict[str, str]]]) -> None:
     """Start crawling the Internet Archive CDX server with the provided set of proxies."""
-    with NoDaemonPool(len(proxies)) as nd_pool:
-        nd_pool.starmap(crawl_web_archive_cdx_worker, zip(partition_jobs(list(TIMESTAMPS), len(proxies)), proxies))
+    with NoDaemonPool(len(configs)) as nd_pool:
+        nd_pool.starmap(crawl_web_archive_cdx_worker, zip(partition_jobs(list(TIMESTAMPS), len(configs)), configs))
 
 
-def start_collect_archive_proximity_sets(proxies: List[Optional[Dict[str, str]]]) -> None:
+def start_collect_archive_proximity_sets(configs: List[Optional[Dict[str, str]]]) -> None:
     """Start crawling the Internet Archive CDX server with the provided set of proxies."""
-    with NoDaemonPool(len(proxies)) as nd_pool:
-        nd_pool.starmap(crawl_proximity_sets, zip(partition_jobs(list(TIMESTAMPS), len(proxies)), proxies))
+    with NoDaemonPool(len(configs)) as nd_pool:
+        nd_pool.starmap(crawl_proximity_sets, zip(partition_jobs(list(TIMESTAMPS), len(configs)), configs))
 
 
 def crawl_daily_web_archive_worker(timestamps: List[datetime], proxies: Optional[Dict[str, str]]) -> None:
     """Worker that initiates the daily Internet Archive crawl."""
     jobs = prepare_archive_jobs(timestamps=timestamps, proxies=proxies)
-    return run_archive_jobs(jobs)
+    run_archive_jobs(jobs)
 
 
 START_TIMESTAMP = datetime(2023, 7, 16, 12, tzinfo=utc)
 
 
-def start_collect_daily_archive_data(proxies: List[Optional[Dict[str, str]]]) -> None:
+def start_collect_daily_archive_data(configs: List[Optional[Dict[str, str]]]) -> None:
     """Start crawling the Internet Archive for all dates in [START_DATE, START_DATE + 14], distributing over proxies."""
     relevant_timestamps = list(filter(lambda date: (TODAY - date).days < 15, date_range(START_TIMESTAMP, TODAY, 15)))
-    with NoDaemonPool(len(proxies)) as nd_pool:
-        nd_pool.starmap(crawl_daily_web_archive_worker, zip(partition_jobs(relevant_timestamps, len(proxies)), proxies))
+    with NoDaemonPool(len(configs)) as nd_pool:
+        nd_pool.starmap(crawl_daily_web_archive_worker, zip(partition_jobs(relevant_timestamps, len(configs)), configs))
 
 
 def main():
     args = parse_args()
-    proxies = build_proxies(args.ports)
+    proxy_configs = build_socks_proxy_configs()
+
+    open_socks_proxies()
 
     if args.crawl_type == 'proximity_set_indexes':
-        start_collect_archive_proximity_set_indexes(proxies)
+        start_collect_archive_proximity_set_indexes(proxy_configs)
     elif args.crawl_type == 'proximity_sets':
-        start_collect_archive_proximity_sets(proxies)
+        start_collect_archive_proximity_sets(proxy_configs)
     elif args.crawl_type == 'daily_archive':
-        start_collect_daily_archive_data(proxies)
+        start_collect_daily_archive_data(proxy_configs)
+
+    close_socks_proxies()
 
 
 if __name__ == '__main__':
