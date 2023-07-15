@@ -1,8 +1,8 @@
-from datetime import date as date_type, timedelta
+from datetime import datetime, date, timedelta
 from itertools import islice
 from math import inf
 from pathlib import Path
-from typing import List, Tuple, Generator
+from typing import List, Tuple, Union, Generator
 
 from configs.crawling import NUMBER_URLS, PREFIX
 
@@ -36,6 +36,8 @@ def get_tranco_data(tranco_file: Path = get_absolute_tranco_file_path(),
     return data
 
 
-def date_range(start: date_type, end: date_type, n: int = inf) -> Generator[date_type, None, None]:
+def date_range(start: Union[datetime, date],
+               end: Union[datetime, date],
+               n: int = inf) -> Generator[Union[datetime, date], None, None]:
     """Yield a generator covering all (or at most `n`) dates from `start` up to (including) `end`."""
     return (start + timedelta(i) for i in range(min((end - start).days + 1, n)))

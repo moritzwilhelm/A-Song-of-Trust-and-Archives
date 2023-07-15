@@ -68,13 +68,12 @@ def crawl_daily_web_archive_worker(timestamps: List[datetime], proxies: Optional
     return run_archive_jobs(jobs)
 
 
-START_TIMESTAMP = datetime(2023, 7, 1, 12, tzinfo=utc)
+START_TIMESTAMP = datetime(2023, 7, 16, 12, tzinfo=utc)
 
 
 def start_collect_daily_archive_data(proxies: List[Optional[Dict[str, str]]]) -> None:
     """Start crawling the Internet Archive for all dates in [START_DATE, START_DATE + 14], distributing over proxies."""
-    relevant_timestamps = list(filter(lambda date: (TODAY.date() - date).days < 15,
-                                      date_range(START_TIMESTAMP.date(), TODAY.date(), 15)))
+    relevant_timestamps = list(filter(lambda date: (TODAY - date).days < 15, date_range(START_TIMESTAMP, TODAY, 15)))
     with NoDaemonPool(len(proxies)) as nd_pool:
         nd_pool.starmap(crawl_daily_web_archive_worker, zip(partition_jobs(relevant_timestamps, len(proxies)), proxies))
 

@@ -6,7 +6,7 @@ from typing import NamedTuple, List, Dict, Optional
 
 import requests
 
-from configs.crawling import NUMBER_URLS, INTERNET_ARCHIVE_URL, TIMESTAMPS
+from configs.crawling import NUMBER_URLS, INTERNET_ARCHIVE_URL, INTERNET_ARCHIVE_TIMESTAMP_FORMAT, TIMESTAMPS
 from configs.database import get_database_cursor
 from configs.utils import get_absolute_tranco_file_path, get_tranco_data
 from data_collection.crawling import setup, reset_failed_crawls, partition_jobs, crawl, CrawlingException
@@ -34,14 +34,14 @@ def worker(jobs: List[ArchiveJob], table_name=TABLE_NAME) -> None:
             try:
                 response = crawl(url, proxies=proxies, session=session)
                 cursor.execute(f"""
-                    INSERT INTO {table_name} 
-                    (tranco_id, domain, timestamp, start_url, end_url, status_code, headers, content_hash, response_time) 
+                    INSERT INTO {table_name}
+                    (tranco_id, domain, timestamp, start_url, end_url, status_code, headers, content_hash, response_time)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, (tranco_id, domain, timestamp, url, *response.serialized_data))
             except CrawlingException as error:
                 cursor.execute(f"""
-                    INSERT INTO {table_name} 
-                    (tranco_id, domain, timestamp, start_url, headers) 
+                    INSERT INTO {table_name}
+                    (tranco_id, domain, timestamp, start_url, headers)
                     VALUES (%s, %s, %s, %s, %s)
                 """, (tranco_id, domain, timestamp, url, error.to_json()))
 
@@ -52,10 +52,12 @@ def prepare_jobs(tranco_file: Path = get_absolute_tranco_file_path(),
                  n: int = NUMBER_URLS) -> List[ArchiveJob]:
     """Generate ArchiveJob list for Tranco file, timestamps, and max domains per timestamp."""
     worked_jobs = reset_failed_crawls(TABLE_NAME)
+    timestamp_strings = [timestamp.strftime(INTERNET_ARCHIVE_TIMESTAMP_FORMAT) for timestamp in timestamps]
+
     return [
-        ArchiveJob(timestamp, tranco_id, domain, INTERNET_ARCHIVE_URL.format(timestamp=timestamp, url=url), proxies)
+        ArchiveJob(timestamp, tranco_id, domain, INTERNET_ARCHIVE_URL.format(timestamp=timestamp_str, url=url), proxies)
         for tranco_id, domain, url in get_tranco_data(tranco_file, n)
-        for timestamp in timestamps
+        for timestamp, timestamp_str in zip(timestamps, timestamp_strings)
         if tranco_id not in worked_jobs[timestamp]
     ]
 

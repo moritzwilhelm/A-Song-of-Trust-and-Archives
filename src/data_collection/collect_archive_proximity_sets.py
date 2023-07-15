@@ -145,7 +145,8 @@ def crawl_proximity_sets(timestamps: List[datetime] = TIMESTAMPS,
     with get_database_cursor() as cursor:
         for timestamp in timestamps:
             cursor.execute(f"""
-                SELECT tranco_id, domain, url, candidates FROM {CANDIDATES_TABLE_NAME} 
+                SELECT tranco_id, domain, url, candidates
+                FROM {CANDIDATES_TABLE_NAME} 
                 WHERE timestamp=%s AND candidates!='[]'
             """, (timestamp,))
 
@@ -153,7 +154,7 @@ def crawl_proximity_sets(timestamps: List[datetime] = TIMESTAMPS,
                 ArchiveJob(ts, tid, domain, INTERNET_ARCHIVE_URL.format(timestamp=timestamp_str, url=url), proxies)
                 for tid, domain, url, candidates in cursor.fetchall()
                 for timestamp_str in candidates[:n]
-                for ts in (datetime.strptime(timestamp_str, INTERNET_ARCHIVE_TIMESTAMP_FORMAT),)
+                for ts in (datetime.strptime(timestamp_str, INTERNET_ARCHIVE_TIMESTAMP_FORMAT).replace(tzinfo=utc),)
                 if tid not in worked_jobs[ts]
             ]
 
@@ -162,8 +163,8 @@ def crawl_proximity_sets(timestamps: List[datetime] = TIMESTAMPS,
 
 
 def main():
-    # setup_candidates_lists_table()
-    # crawl_web_archive_cdx()
+    setup_candidates_lists_table()
+    crawl_web_archive_cdx()
 
     setup(TABLE_NAME)
     crawl_proximity_sets()

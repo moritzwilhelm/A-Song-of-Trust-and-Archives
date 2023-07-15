@@ -27,14 +27,14 @@ def worker(jobs: List[LiveJob], table_name=TABLE_NAME) -> None:
             try:
                 response = crawl(url)
                 cursor.execute(f"""
-                    INSERT INTO {table_name} 
-                    (tranco_id, domain, timestamp, start_url, end_url, status_code, headers, content_hash, response_time) 
+                    INSERT INTO {table_name}
+                    (tranco_id, domain, timestamp, start_url, end_url, status_code, headers, content_hash, response_time)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, (tranco_id, domain, TODAY, url, *response.serialized_data))
             except CrawlingException as error:
                 cursor.execute(f"""
-                    INSERT INTO {table_name} 
-                    (tranco_id, domain, timestamp, start_url, headers) 
+                    INSERT INTO {table_name}
+                    (tranco_id, domain, timestamp, start_url, headers)
                     VALUES (%s, %s, %s, %s, %s)
                 """, (tranco_id, domain, TODAY, url, error.to_json()))
 
