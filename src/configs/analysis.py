@@ -10,3 +10,6 @@ RELEVANT_HEADERS = (
 )
 
 INTERNET_ARCHIVE_HEADER_PREFIX = 'X-Archive-Orig-'
+
+MEMENTO_HEADER = 'Memento-Datetime'
+MEMENTO_HEADER_FORMAT = '%a, %d %b %Y %H:%M:%S %Z'

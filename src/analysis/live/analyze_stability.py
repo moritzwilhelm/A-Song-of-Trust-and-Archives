@@ -3,18 +3,16 @@ from collections import defaultdict
 from datetime import date as date_type, timedelta, datetime
 from typing import Callable, List, Tuple, Optional
 
+from pytz import utc
 from tqdm import tqdm
 
 from analysis.analysis_utils import parse_origin, get_aggregated_date
 from analysis.header_utils import Headers, normalize_headers, classify_headers
 from analysis.live.stability_enums import Status
-from configs.analysis import RELEVANT_HEADERS
+from configs.analysis import RELEVANT_HEADERS, MEMENTO_HEADER, MEMENTO_HEADER_FORMAT
 from configs.database import get_database_cursor
 from configs.utils import join_with_json_path, get_tranco_data, date_range
 from data_collection.collect_live_data import TABLE_NAME as LIVE_TABLE_NAME
-
-DATE = "20230501"
-ARCHIVE_TABLE_NAME = f"archive_data_{DATE}"
 
 
 def analyze_live_data(targets: List[Tuple[int, str, str]],
@@ -53,29 +51,34 @@ def analyze_live_data(targets: List[Tuple[int, str, str]],
         json.dump(result, file, indent=2, sort_keys=True)
 
 
+DATE = datetime(2023, 5, 1, 12, tzinfo=utc)
+ARCHIVE_TABLE_NAME = f"archive_data_20230501"
+
+
 def compute_archive_snapshot_stability(targets: List[Tuple[int, str, str]],
                                        start: date_type = get_aggregated_date(ARCHIVE_TABLE_NAME, 'MIN'),
                                        end: date_type = get_aggregated_date(ARCHIVE_TABLE_NAME, 'MAX')) -> None:
     """Compute the stability of archived snapshots from `start` date up to (inclusive) `end` date."""
     assert start <= end
 
-    archive_data = defaultdict(dict)
+    archive_data = {}
     with get_database_cursor() as cursor:
-        # TODO use headers memento datetime instead of url part
         cursor.execute(f"""
-            SELECT tranco_id, timestamp::date, end_url, substring(split_part(end_url, '/', 5) FROM 1 FOR 8), status_code 
+            SELECT tranco_id, timestamp::date, end_url, headers->>%s, status_code 
             FROM {ARCHIVE_TABLE_NAME}
-            WHERE status_code IN (200, 404) AND timestamp::date BETWEEN %s AND %s
-        """, (start, end))
-        for tid, date, *data in cursor.fetchall():
-            archive_data[tid][date] = data
+            WHERE (headers->>%s IS NOT NULL OR status_code=404) AND timestamp::date BETWEEN %s AND %s
+        """, (MEMENTO_HEADER.lower(), MEMENTO_HEADER.lower(), start, end))
+        for tid, date, end_url, memento_datetime, status_code in cursor.fetchall():
+            if memento_datetime is not None:
+                memento_datetime = datetime.strptime(memento_datetime, MEMENTO_HEADER_FORMAT).replace(tzinfo=utc)
+            archive_data[tid, date] = (end_url, memento_datetime, status_code)
 
     result = defaultdict(dict)
     for tid, _, _ in tqdm(targets):
         previous_status = Status.MISSING
         previous_snapshot = None
         for date in date_range(start, end):
-            if date not in archive_data[tid]:
+            if (tid, date) not in archive_data:
                 if previous_status in (Status.ADDED, Status.MODIFIED):
                     status = Status.UNMODIFIED
                 elif previous_status == Status.REMOVED:
@@ -83,22 +86,20 @@ def compute_archive_snapshot_stability(targets: List[Tuple[int, str, str]],
                 else:
                     status = previous_status
             else:
-                end_url, day, status_code = archive_data[tid][date]
-                if day not in (datetime.strftime(datetime.strptime(DATE, "%Y%m%d") - timedelta(days=1), '%Y%m%d'),
-                               DATE,
-                               datetime.strftime(datetime.strptime(DATE, "%Y%m%d") + timedelta(days=1), '%Y%m%d')):
+                end_url, memento_datetime, status_code = archive_data[tid, date]
+                if memento_datetime is None:
+                    assert status_code == 404
+                    if previous_status in (Status.ADDED, Status.MODIFIED, Status.UNMODIFIED):
+                        status = Status.REMOVED
+                    else:
+                        status = Status.MISSING
+                elif abs(memento_datetime - DATE) > timedelta(1):
                     if previous_status in (Status.ADDED, Status.MODIFIED):
                         status = Status.UNMODIFIED
                     elif previous_status == Status.REMOVED:
                         status = Status.MISSING
                     else:
                         status = previous_status
-                elif status_code == 404:
-                    # todo check for 404 on IA, i.e., headers memento-datetime has to be missing
-                    if previous_status in (Status.ADDED, Status.MODIFIED, Status.UNMODIFIED):
-                        status = Status.REMOVED
-                    else:
-                        status = Status.MISSING
                 else:
                     if previous_status in (Status.MISSING, Status.REMOVED):
                         status = Status.ADDED
