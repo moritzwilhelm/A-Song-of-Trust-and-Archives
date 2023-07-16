@@ -9,61 +9,61 @@ def max_enum(first: E, second: E) -> E:
     return first if first.value >= second.value else second
 
 
-class XFO(Enum):
+class XFO(int, Enum):
     UNSAFE = 0
     SELF = 1
     NONE = 2
 
 
-class CspFA(Enum):
+class CspFA(int, Enum):
     UNSAFE = 0
     CONSTRAINED = 1
     SELF = 2
     NONE = 3
 
 
-class CspXSS(Enum):
+class CspXSS(int, Enum):
     UNSAFE = 0
     SAFE = 1
 
 
-class CspTLS(Enum):
+class CspTLS(int, Enum):
     UNSAFE = 0
     ENABLED = 1
 
 
-class HSTSAge(Enum):
+class HSTSAge(int, Enum):
     DISABLE = -1
     UNSAFE = 0
     LOW = 1
     BIG = 2
 
 
-class HSTSSub(Enum):
+class HSTSSub(int, Enum):
     UNSAFE = 0
     SAFE = 1
 
 
-class HSTSPreload(Enum):
+class HSTSPreload(int, Enum):
     ABSENT = 0
     ACTIVE = 1
 
 
-class RP(Enum):
+class RP(int, Enum):
     UNSAFE = 0
     SAFE = 1
 
 
-class COOP(Enum):
+class COOP(int, Enum):
     UNSAFE = 0
     SAFE = 1
 
 
-class CORP(Enum):
+class CORP(int, Enum):
     UNSAFE = 0
     SAFE = 1
 
 
-class COEP(Enum):
+class COEP(int, Enum):
     UNSAFE = 0
     SAFE = 1

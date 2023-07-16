@@ -1,4 +1,5 @@
 import re
+from json import JSONEncoder, JSONDecoder
 from typing import Dict, Union, Tuple, Set, List
 
 from requests.structures import CaseInsensitiveDict
@@ -6,9 +7,33 @@ from requests.structures import CaseInsensitiveDict
 from analysis.security_enums import XFO, CspFA, CspXSS, CspTLS, HSTSAge, HSTSSub, HSTSPreload, RP, COOP, CORP, COEP, \
     max_enum
 
+Headers = CaseInsensitiveDict
 
-def normalize_headers(headers: Dict, origin: str = None) -> CaseInsensitiveDict:
-    return CaseInsensitiveDict({
+
+class HeadersEncoder(JSONEncoder):
+    """JSONEncoder for case-insensitive header date."""
+
+    def default(self, obj):
+        if isinstance(obj, Headers):
+            return dict(obj)
+        return super().default(obj)
+
+
+class HeadersDecoder(JSONDecoder):
+    """JSONDecoder for case-insensitive header data."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(object_hook=self.object_hook, *args, **kwargs)
+
+    def object_hook(self, dct):
+        for key, value in dct.items():
+            if isinstance(value, list):
+                dct[key] = tuple(value)
+        return Headers(dct)
+
+
+def normalize_headers(headers: Headers, origin: str = None) -> Headers:
+    return Headers({
         'X-Frame-Options': normalize_xfo(
             headers['X-Frame-Options']) if 'X-Frame-Options' in headers else '<MISSING>',
         'Content-Security-Policy': normalize_csp(
@@ -28,8 +53,8 @@ def normalize_headers(headers: Dict, origin: str = None) -> CaseInsensitiveDict:
     })
 
 
-def classify_headers(headers: Dict, origin: str = None) -> CaseInsensitiveDict:
-    return CaseInsensitiveDict({
+def classify_headers(headers: Headers, origin: str = None) -> Headers:
+    return Headers({
         'X-Frame-Options': classify_xfo(headers.get('X-Frame-Options', '')),
         'Content-Security-Policy': classify_csp(headers.get('Content-Security-Policy', ''), origin),
         'Strict-Transport-Security': classify_hsts(headers.get('Strict-Transport-Security', '')),

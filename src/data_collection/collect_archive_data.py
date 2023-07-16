@@ -13,7 +13,7 @@ from data_collection.crawling import setup, reset_failed_crawls, partition_jobs,
 
 WORKERS = 8
 
-TABLE_NAME = "HISTORICAL_DATA"
+TABLE_NAME = 'HISTORICAL_DATA'
 
 
 class ArchiveJob(NamedTuple):

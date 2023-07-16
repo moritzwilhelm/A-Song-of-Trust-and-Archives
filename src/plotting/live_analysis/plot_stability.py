@@ -29,9 +29,9 @@ def plot_live(input_path: Path,
         results = json.load(file)
 
     for line_id, header in enumerate(RELEVANT_HEADERS):
-        total = sum(results[url][header]['DEPLOYS'] for url in results)
+        total = sum(results[tid][header]['DEPLOYS'] for tid in results)
         data = [
-            sum(results[url][header][str(date)] for url in results if results[url][header]['DEPLOYS']) / total
+            sum(results[tid][header][str(date)] for tid in results if results[tid][header]['DEPLOYS']) / total
             for date in date_range(start, end)]
         plt.plot(data, ls=STYLE[line_id][1:], marker=STYLE[line_id][0], label=HEADER_ABBREVIATION[header])
 
@@ -68,16 +68,16 @@ def plot_snapshot_stability(input_path: Path,
     num_days = (end - start).days + 1
     dates = [start + timedelta(days=i) for i in range(num_days)]
 
-    def get_status_list(url, date):
-        return {results[url][str(day)] for day in date_range(start, date)}
+    def get_status_list(tid, date):
+        return {results[tid][str(day)] for day in date_range(start, date)}
 
-    additions = [sum(results[url][str(date)] == Status.ADDED for url in results) for date in dates]
+    additions = [sum(results[tid][str(date)] == Status.ADDED for tid in results) for date in dates]
     print('ADDITIONS', additions)
-    snapshots = [sum(Status.ADDED in get_status_list(url, date) for url in results) for date in dates]
+    snapshots = [sum(Status.ADDED in get_status_list(tid, date) for tid in results) for date in dates]
     print('SNAPSHOTS', snapshots)
-    modifications = [sum(results[url][str(date)] == Status.MODIFIED for url in results) for date in dates]
+    modifications = [sum(results[tid][str(date)] == Status.MODIFIED for tid in results) for date in dates]
     print('MODIFICATIONS', modifications)
-    deletions = [sum(results[url][str(date)] == Status.REMOVED for url in results) for date in dates]
+    deletions = [sum(results[tid][str(date)] == Status.REMOVED for tid in results) for date in dates]
     print('DELETIONS', deletions)
 
     ax.plot(snapshots, label='Sites with snapshot', color=palette[0])  # , width=0.2)
@@ -118,13 +118,13 @@ def plot_snapshot_stability(input_path: Path,
 def main():
     # LIVE DATA
     plot_live(
-        join_with_json_path('STABILITY-live_data-normalize_headers.json'),
-        join_with_plots_path('STABILITY-live_data-normalize_headers.pdf')
+        join_with_json_path('STABILITY-LIVE_DATA-normalize_headers.json'),
+        join_with_plots_path('STABILITY-LIVE_DATA-normalize_headers.pdf')
     )
 
     plot_live(
-        join_with_json_path('STABILITY-live_data-classify_headers.json'),
-        join_with_plots_path('STABILITY-live_data-classify_headers.pdf')
+        join_with_json_path('STABILITY-LIVE_DATA-classify_headers.json'),
+        join_with_plots_path('STABILITY-LIVE_DATA-classify_headers.pdf')
     )
 
     # ARCHIVE DATA
