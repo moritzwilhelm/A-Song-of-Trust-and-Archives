@@ -4,6 +4,8 @@ from configs.utils import get_absolute_tranco_file_path
 
 SEED = 1337
 
+RANDOM_SAMPLING_TABLE_NAME = 'RANDOM_SAMPLING_HISTORICAL_DATA'
+
 
 def sample(buckets=10, domains_per_bucket=2000):
     """Apply stratified random sampling on the tranco file."""
