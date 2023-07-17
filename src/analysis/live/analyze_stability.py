@@ -9,7 +9,7 @@ from tqdm import tqdm
 from analysis.analysis_utils import parse_origin, get_aggregated_date
 from analysis.header_utils import Headers, normalize_headers, classify_headers
 from analysis.live.stability_enums import Status
-from configs.analysis import RELEVANT_HEADERS, MEMENTO_HEADER, MEMENTO_HEADER_FORMAT
+from configs.analysis import RELEVANT_HEADERS, MEMENTO_HEADER
 from configs.database import get_database_cursor
 from configs.utils import join_with_json_path, get_tranco_data, date_range
 from data_collection.collect_live_data import TABLE_NAME as LIVE_TABLE_NAME
@@ -64,14 +64,12 @@ def compute_archive_snapshot_stability(targets: List[Tuple[int, str, str]],
     archive_data = {}
     with get_database_cursor() as cursor:
         cursor.execute(f"""
-            SELECT tranco_id, timestamp::date, end_url, headers->>%s, status_code 
+            SELECT tranco_id, timestamp::date, end_url, (headers->>%s)::TIMESTAMPTZ, status_code 
             FROM {ARCHIVE_TABLE_NAME}
             WHERE (headers->>%s IS NOT NULL OR status_code=404) AND timestamp::date BETWEEN %s AND %s
         """, (MEMENTO_HEADER.lower(), MEMENTO_HEADER.lower(), start, end))
-        for tid, date, end_url, memento_datetime, status_code in cursor.fetchall():
-            if memento_datetime is not None:
-                memento_datetime = datetime.strptime(memento_datetime, MEMENTO_HEADER_FORMAT).replace(tzinfo=utc)
-            archive_data[tid, date] = (end_url, memento_datetime, status_code)
+        for tid, date, *data in cursor.fetchall():
+            archive_data[tid, date] = data
 
     result = defaultdict(dict)
     for tid, _, _ in tqdm(targets):

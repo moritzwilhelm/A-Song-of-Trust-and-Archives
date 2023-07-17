@@ -1,3 +1,5 @@
+from seaborn import color_palette
+
 HEADER_ABBREVIATION = {
     'X-Frame-Options': 'XFO',
     'Content-Security-Policy': 'CSP',
@@ -10,3 +12,5 @@ HEADER_ABBREVIATION = {
 }
 
 STYLE = ['s-', 'o-', '^-', 's--', 'o--', '^--', 's:', 'o:', '^:', 's-.']
+
+COLORS = color_palette('colorblind')
