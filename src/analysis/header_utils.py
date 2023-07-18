@@ -23,13 +23,7 @@ class HeadersDecoder(JSONDecoder):
     """JSONDecoder for case-insensitive header data."""
 
     def __init__(self, *args, **kwargs):
-        super().__init__(object_hook=self.object_hook, *args, **kwargs)
-
-    def object_hook(self, dct):
-        for key, value in dct.items():
-            if isinstance(value, list):
-                dct[key] = tuple(value)
-        return Headers(dct)
+        super().__init__(object_hook=Headers, *args, **kwargs)
 
 
 def normalize_headers(headers: Headers, origin: str = None) -> Headers:
