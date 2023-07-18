@@ -9,7 +9,7 @@ from pandas import DataFrame
 from analysis.analysis_utils import get_aggregated_date
 from analysis.live.stability_enums import Status
 from configs.analysis import RELEVANT_HEADERS
-from configs.utils import join_with_json_path, join_with_plots_path, date_range
+from configs.utils import join_with_json_path, json_to_plots_path, date_range
 from data_collection.collect_live_data import TABLE_NAME as LIVE_TABLE_NAME
 from plotting.plotting_utils import HEADER_ABBREVIATION, STYLE, COLORS
 
@@ -17,7 +17,6 @@ ARCHIVE_TABLE_NAME = 'archive_data_20230501'
 
 
 def plot_live(input_path: Path,
-              output_path: Path,
               start: date_type = get_aggregated_date(LIVE_TABLE_NAME, 'MIN'),
               end: date_type = get_aggregated_date(LIVE_TABLE_NAME, 'MAX')) -> None:
     """Plot the analyzed live data in `input_path` between `start` and `end` and save the figure at `output_path`."""
@@ -40,13 +39,12 @@ def plot_live(input_path: Path,
     axes.set_xlabel('Days')
     axes.set_ylabel('Stable sites')
 
-    axes.figure.savefig(output_path, bbox_inches='tight', dpi=300)
+    axes.figure.savefig(json_to_plots_path(input_path), bbox_inches='tight', dpi=300)
 
     axes.figure.show()
 
 
 def plot_snapshot_stability(input_path: Path,
-                            output_path: Path,
                             start: date_type = get_aggregated_date(ARCHIVE_TABLE_NAME, 'MIN'),
                             end: date_type = get_aggregated_date(ARCHIVE_TABLE_NAME, 'MAX')) -> None:
     """Plot the analyzed archive data in `input_path` between `start` and `end` and save the figure at `output_path`."""
@@ -68,7 +66,7 @@ def plot_snapshot_stability(input_path: Path,
     axes.set_xlabel('Days')
     axes.set_ylabel('Affected Sites')
 
-    axes.figure.savefig(output_path, bbox_inches='tight', dpi=300)
+    axes.figure.savefig(json_to_plots_path(input_path), bbox_inches='tight', dpi=300)
 
     axes.figure.show()
 
@@ -76,25 +74,21 @@ def plot_snapshot_stability(input_path: Path,
 def main():
     # LIVE DATA
     plot_live(
-        join_with_json_path('STABILITY-LIVE_DATA-normalize_headers.json'),
-        join_with_plots_path('STABILITY-LIVE_DATA-normalize_headers.pdf')
+        join_with_json_path('STABILITY-LIVE_DATA-normalize_headers.json')
     )
 
     plot_live(
-        join_with_json_path('STABILITY-LIVE_DATA-classify_headers.json'),
-        join_with_plots_path('STABILITY-LIVE_DATA-classify_headers.pdf')
+        join_with_json_path('STABILITY-LIVE_DATA-classify_headers.json')
     )
 
     # ARCHIVE DATA
     start_date = get_aggregated_date(ARCHIVE_TABLE_NAME, 'MIN')
     plot_snapshot_stability(
-        join_with_json_path(f"STABILITY-archive_data_20230501-snapshots-{start_date}.json"),
-        join_with_plots_path(f"STABILITY-archive_data_20230501-snapshots-{start_date}.pdf")
+        join_with_json_path(f"STABILITY-archive_data_20230501-snapshots-{start_date}.json")
     )
 
     plot_snapshot_stability(
         join_with_json_path(f"STABILITY-archive_data_20230501-snapshots-{start_date + timedelta(days=1)}.json"),
-        join_with_plots_path(f"STABILITY-archive_data_20230501-snapshots-{start_date + timedelta(days=1)}.pdf"),
         start=start_date + timedelta(days=1)
     )
 

@@ -16,8 +16,13 @@ def join_with_json_path(filename: str) -> Path:
 
 
 def join_with_plots_path(filename: str) -> Path:
-    """Return absolute path to the specified `filename` in the results/json directory."""
+    """Return absolute path to the specified `filename` in the results/plots directory."""
     return PROJECT_ROOT.joinpath('results', 'plots', filename)
+
+
+def json_to_plots_path(file_path: Path, extension: str = '.pdf') -> Path:
+    """Return absolute path in the results/plots directory based on the given json `file_path` and file `extension`."""
+    return join_with_plots_path(file_path.with_suffix(extension).name)
 
 
 def get_absolute_tranco_file_path() -> Path:

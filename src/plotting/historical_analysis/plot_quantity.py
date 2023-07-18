@@ -1,23 +1,19 @@
 import json
+from os.path import commonprefix
 from pathlib import Path
-from typing import Tuple, List
 
 import pandas as pd
 from matplotlib.ticker import PercentFormatter
 from pandas import DataFrame
 
-from configs.crawling import TIMESTAMPS, NUMBER_URLS
+from configs.crawling import NUMBER_URLS
 from configs.random_sample_tranco import RANDOM_SAMPLING_TABLE_NAME
-from configs.utils import join_with_json_path, join_with_plots_path
+from configs.utils import join_with_json_path, join_with_plots_path, json_to_plots_path
 from data_collection.collect_archive_data import TABLE_NAME
-from plotting.plotting_utils import COLORS
+from plotting.plotting_utils import COLORS, get_year_ticks
 
 
-def get_year_ticks(start: int = 0) -> Tuple[range, List[int]]:
-    return range(start, len(TIMESTAMPS), 4), sorted({date.year for date in TIMESTAMPS})
-
-
-def plot_hits(hits_input_path: Path, fresh_hits_input_path: Path, output_path: Path) -> None:
+def plot_hits(hits_input_path: Path, fresh_hits_input_path: Path) -> None:
     """Plot the amount of archive hits in both `input_paths` and save the figure at `output_path`."""
     with open(hits_input_path) as file:
         hits = DataFrame.from_dict(json.load(file), orient='index', columns=['Hits'])
@@ -30,12 +26,13 @@ def plot_hits(hits_input_path: Path, fresh_hits_input_path: Path, output_path: P
     axes.legend(loc='lower right')
     axes.set_xticks(*get_year_ticks(), rotation=0)
 
-    axes.figure.savefig(output_path, bbox_inches='tight', dpi=300)
+    output_filename = f"{commonprefix((hits_input_path.name, fresh_hits_input_path.name)).rstrip('-')}.pdf"
+    axes.figure.savefig(join_with_plots_path(output_filename), bbox_inches='tight', dpi=300)
 
     axes.figure.show()
 
 
-def plot_drifts(input_path: Path, output_path: Path) -> None:
+def plot_drifts(input_path: Path) -> None:
     """Plot the temporal drifts between archived date and requested date."""
     with open(input_path) as file:
         data = pd.read_json(file, orient='index').transpose()
@@ -55,12 +52,12 @@ def plot_drifts(input_path: Path, output_path: Path) -> None:
     axes.set_ylabel('Temporal drift in days')
     axes.set_yticks(range(-42, 43, 7))
 
-    axes.figure.savefig(output_path, bbox_inches='tight', dpi=300)
+    axes.figure.savefig(json_to_plots_path(input_path), bbox_inches='tight', dpi=300)
 
     axes.figure.show()
 
 
-def plot_hits_per_buckets(input_path: Path, output_path: Path):
+def plot_hits_per_buckets(input_path: Path):
     """Plot the number of archive hits per 100k bucket."""
     with open(input_path) as file:
         data = pd.read_json(file, orient='index')
@@ -72,7 +69,7 @@ def plot_hits_per_buckets(input_path: Path, output_path: Path):
     axes.set_yticks(range(0, (NUMBER_URLS // 10) + 1, NUMBER_URLS // 100))
     axes.yaxis.set_major_formatter(PercentFormatter(xmax=NUMBER_URLS / 10))
 
-    axes.figure.savefig(output_path, bbox_inches='tight', dpi=300)
+    axes.figure.savefig(json_to_plots_path(input_path), bbox_inches='tight', dpi=300)
 
     axes.figure.show()
 
@@ -81,20 +78,17 @@ def main():
     for table_name in TABLE_NAME, RANDOM_SAMPLING_TABLE_NAME:
         plot_hits(
             join_with_json_path(f"QUANTITY-{table_name}-None-w-tolerance.json"),
-            join_with_json_path(f"QUANTITY-{table_name}-6-w-tolerance.json"),
-            join_with_plots_path(f"QUANTITY-{table_name}.pdf")
+            join_with_json_path(f"QUANTITY-{table_name}-6-w-tolerance.json")
         )
 
         for tolerance in None, 6:
             plot_drifts(
-                join_with_json_path(f"DRIFTS-{table_name}-{tolerance}-w-tolerance.json"),
-                join_with_plots_path(f"DRIFTS-{table_name}-{tolerance}-w-tolerance.pdf")
+                join_with_json_path(f"DRIFTS-{table_name}-{tolerance}-w-tolerance.json")
             )
 
     for tolerance in None, 6:
         plot_hits_per_buckets(
-            join_with_json_path(f"BUCKETS-{RANDOM_SAMPLING_TABLE_NAME}-{tolerance}-w-tolerance.json"),
-            join_with_plots_path(f"BUCKETS-{RANDOM_SAMPLING_TABLE_NAME}-{tolerance}-w-tolerance.pdf")
+            join_with_json_path(f"BUCKETS-{RANDOM_SAMPLING_TABLE_NAME}-{tolerance}-w-tolerance.json")
         )
 
 
