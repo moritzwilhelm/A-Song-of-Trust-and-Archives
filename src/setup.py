@@ -12,7 +12,7 @@ def update_utils_file() -> None:
 
     with open(utils_file_path, 'w') as file:
         file.write(utils_file_content.replace('<AUTOMATICALLY-REPLACED-DURING-INSTALL>',
-                                              str(Path(__file__).parent.resolve())))
+                                              str(Path(__file__).parents[1].resolve())))
 
 
 update_utils_file()

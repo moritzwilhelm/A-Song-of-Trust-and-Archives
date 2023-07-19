@@ -7,7 +7,7 @@ from typing import List, Tuple, Union, Generator
 from configs.crawling import NUMBER_URLS, PREFIX
 
 PROJECT_ROOT = Path('<AUTOMATICALLY-REPLACED-DURING-INSTALL>')
-INSTALLED_PROJECT_ROOT = Path(__file__).parents[1].resolve()
+INSTALLED_PROJECT_ROOT = Path(__file__).parents[2].resolve()
 
 
 def join_with_json_path(filename: str) -> Path:
@@ -27,7 +27,7 @@ def json_to_plots_path(file_path: Path, extension: str = '.pdf') -> Path:
 
 def get_absolute_tranco_file_path() -> Path:
     """Return absolute path to the Tranco file."""
-    return PROJECT_ROOT.joinpath('configs', 'tranco_W9JG9.csv')
+    return PROJECT_ROOT.joinpath('src', 'configs', 'tranco_W9JG9.csv')
 
 
 def get_tranco_data(tranco_file: Path = get_absolute_tranco_file_path(),
