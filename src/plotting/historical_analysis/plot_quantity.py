@@ -3,6 +3,7 @@ from os.path import commonprefix
 from pathlib import Path
 
 import pandas as pd
+from matplotlib import pyplot as plt
 from matplotlib.ticker import PercentFormatter
 from pandas import DataFrame
 
@@ -30,6 +31,7 @@ def plot_hits(hits_input_path: Path, fresh_hits_input_path: Path) -> None:
     axes.figure.savefig(join_with_plots_path(output_filename), bbox_inches='tight', dpi=300)
 
     axes.figure.show()
+    plt.close()
 
 
 def plot_drifts(input_path: Path) -> None:
@@ -55,6 +57,7 @@ def plot_drifts(input_path: Path) -> None:
     axes.figure.savefig(json_to_plots_path(input_path), bbox_inches='tight', dpi=300)
 
     axes.figure.show()
+    plt.close()
 
 
 def plot_hits_per_buckets(input_path: Path):
@@ -72,6 +75,7 @@ def plot_hits_per_buckets(input_path: Path):
     axes.figure.savefig(json_to_plots_path(input_path), bbox_inches='tight', dpi=300)
 
     axes.figure.show()
+    plt.close()
 
 
 def main():

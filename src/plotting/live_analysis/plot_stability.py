@@ -3,6 +3,7 @@ from datetime import date as date_type
 from datetime import timedelta
 from pathlib import Path
 
+from matplotlib import pyplot as plt
 from matplotlib.ticker import PercentFormatter
 from pandas import DataFrame
 
@@ -42,6 +43,7 @@ def plot_live(input_path: Path,
     axes.figure.savefig(json_to_plots_path(input_path), bbox_inches='tight', dpi=300)
 
     axes.figure.show()
+    plt.close()
 
 
 def plot_snapshot_stability(input_path: Path,
@@ -69,6 +71,7 @@ def plot_snapshot_stability(input_path: Path,
     axes.figure.savefig(json_to_plots_path(input_path), bbox_inches='tight', dpi=300)
 
     axes.figure.show()
+    plt.close()
 
 
 def main():

@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pandas as pd
+from matplotlib import pyplot as plt
 from matplotlib.ticker import MaxNLocator
 
 from configs.utils import join_with_json_path, json_to_plots_path
@@ -32,6 +33,7 @@ def plot_stats(file_path: Path):
         axes.figure.savefig(output_path, bbox_inches='tight', dpi=300)
 
         axes.figure.show()
+        plt.close()
 
 
 def main():

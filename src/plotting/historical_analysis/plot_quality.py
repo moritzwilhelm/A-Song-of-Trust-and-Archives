@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 
+from matplotlib import pyplot as plt
 from matplotlib.ticker import MaxNLocator
 from pandas import DataFrame
 
@@ -38,6 +39,7 @@ def plot_quality(input_path: Path) -> None:
         axes.figure.savefig(json_to_plots_path(input_path, f".{header}.pdf"), bbox_inches='tight', dpi=300)
 
         axes.figure.show()
+        plt.close()
 
 
 def main():
