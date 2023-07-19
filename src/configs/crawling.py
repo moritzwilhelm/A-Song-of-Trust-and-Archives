@@ -15,7 +15,7 @@ TIMESTAMPS = tuple(
     datetime(year, month, 15, 12, tzinfo=utc)
     for year in range(2016, TODAY.year + 1)
     for month in [1, 4, 7, 10]
-    if datetime(year, month, 15, 12, tzinfo=utc) <= TODAY
+    if datetime(year, month, 15, 12, tzinfo=utc) < datetime(2023, 7, 15, 12, tzinfo=utc)
 )
 
 SOCKS_PROXIES = {
