@@ -66,6 +66,7 @@ def plot_hits_per_buckets(input_path: Path):
         data = pd.read_json(file, orient='index')
 
     axes = data.plot.bar(color=COLORS, grid=True, ylim=(0, NUMBER_URLS // 10))
+    axes.legend([f"{bucket}k" for bucket in data.columns])
     axes.set_xlabel('Timestamp')
     axes.set_xticks(*get_year_ticks(), rotation=0)
     axes.set_ylabel('Hits')

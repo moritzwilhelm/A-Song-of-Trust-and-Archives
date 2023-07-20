@@ -69,8 +69,7 @@ def compute_hits_per_bucket(tolerance: int = None):
                     WHERE timestamp=%s AND (headers->>%s)::TIMESTAMPTZ BETWEEN %s AND %s AND tranco_id BETWEEN %s AND %s
                 """, (timestamp, MEMENTO_HEADER.lower(), *compute_tolerance_window(timestamp, tolerance), start, end))
 
-                for count, in cursor.fetchall():
-                    num_hits[str(timestamp)][f"{end // 1_000}k"] = count
+                num_hits[str(timestamp)][end // 1_000] = cursor.fetchone()[0]
 
     with open(join_with_json_path(f"BUCKETS-{RANDOM_SAMPLING_TABLE_NAME}-{tolerance}-w-tolerance.json"), 'w') as file:
         json.dump(num_hits, file, indent=2, sort_keys=True)
