@@ -24,8 +24,14 @@ def parse_origin(url: str) -> str:
     return origin
 
 
-def get_aggregated_date(table_name: str, aggregation_function: str) -> Any:
-    """Apply the `aggregation_function` on all dates in `table_name` and return the resulting value."""
+def get_aggregated_timestamp(table_name: str, aggregation_function: str) -> Any:
+    """Apply the `aggregation_function` on all timestamps in `table_name` and return the resulting value."""
+    with get_database_cursor() as cursor:
+        cursor.execute(f"SELECT {aggregation_function}(timestamp) FROM {table_name}")
+        return cursor.fetchone()[0]
+
+def get_aggregated_timestamp_date(table_name: str, aggregation_function: str) -> Any:
+    """Apply the `aggregation_function` on all timestamp::dates in `table_name` and return the resulting value."""
     with get_database_cursor() as cursor:
         cursor.execute(f"SELECT {aggregation_function}(timestamp::date) FROM {table_name}")
         return cursor.fetchone()[0]
