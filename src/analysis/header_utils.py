@@ -244,7 +244,6 @@ def classify_hsts(value: str) -> Tuple[HSTSAge, HSTSSub, HSTSPreload]:
 
 def normalize_referrer_policy(value: str) -> str:
     tokens = [token.strip() for token in value.lower().split(',')]
-    tokens.sort()
     return ','.join(tokens)
 
 
@@ -263,7 +262,7 @@ REFERRER_POLICY_VALUES = {
 
 def classify_referrer_policy(value: str) -> RP:
     policy = ''
-    for token in [token.strip() for token in value.lower().split(',')]:
+    for token in normalize_referrer_policy(value).split(','):
         if token in REFERRER_POLICY_VALUES:
             # only consider the latest valid policy
             # https://w3c.github.io/webappsec-referrer-policy/#parse-referrer-policy-from-header
@@ -288,30 +287,35 @@ def classify_permissions_policy(value: str) -> str:
 # Cross-Origin-Opener-Policy
 
 def normalize_coop(value: str) -> str:
-    return value.lower().strip()
+    tokens = [token.strip() for token in value.split(';')]
+    return ';'.join(tokens)
 
 
 def classify_coop(value: str) -> COOP:
-    return COOP(normalize_coop(value) not in ('unsafe-none', ''))
+    directive = normalize_coop(value).split(';')[0]
+    return COOP(directive in ('same-origin', 'same-origin-allow-popups'))
 
 
 # ----------------------------------------------------------------------------
 # Cross-Origin-Resource-Policy
 
 def normalize_corp(value: str) -> str:
-    return value.lower().strip()
+    return value.strip()
 
 
 def classify_corp(value: str) -> CORP:
-    return CORP(normalize_corp(value) not in ('cross-origin', ''))
+    directive = normalize_corp(value)
+    return CORP(directive in ('same-origin', 'same-site'))
 
 
 # ----------------------------------------------------------------------------
 # Cross-Origin-Embedder-Policy
 
 def normalize_coep(value: str) -> str:
-    return value.lower().strip()
+    tokens = [token.strip() for token in value.split(';')]
+    return ';'.join(tokens)
 
 
 def classify_coep(value: str) -> COEP:
-    return COEP(normalize_coep(value) not in ('unsafe-none', ''))
+    directive = normalize_coop(value).split(';')[0]
+    return COEP(directive in ('require-corp', 'credentialless'))
