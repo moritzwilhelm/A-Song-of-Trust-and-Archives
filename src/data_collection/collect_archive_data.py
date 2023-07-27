@@ -9,7 +9,7 @@ import requests
 from configs.crawling import NUMBER_URLS, INTERNET_ARCHIVE_URL, INTERNET_ARCHIVE_TIMESTAMP_FORMAT, TIMESTAMPS
 from configs.database import get_database_cursor
 from configs.utils import get_absolute_tranco_file_path, get_tranco_data
-from data_collection.crawling import setup, reset_failed_crawls, partition_jobs, crawl, CrawlingException
+from data_collection.crawling import setup, reset_failed_archive_crawls, partition_jobs, CrawlingException, crawl
 
 WORKERS = 8
 
@@ -51,7 +51,7 @@ def prepare_jobs(tranco_file: Path = get_absolute_tranco_file_path(),
                  proxies: Optional[Dict[str, str]] = None,
                  n: int = NUMBER_URLS) -> List[ArchiveJob]:
     """Generate ArchiveJob list for Tranco file, timestamps, and max domains per timestamp."""
-    worked_jobs = reset_failed_crawls(TABLE_NAME)
+    worked_jobs = reset_failed_archive_crawls(TABLE_NAME)
     timestamp_strings = [timestamp.strftime(INTERNET_ARCHIVE_TIMESTAMP_FORMAT) for timestamp in timestamps]
 
     return [

@@ -5,7 +5,7 @@ import signal
 import traceback
 from collections import defaultdict
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, date as date_type
 from hashlib import sha256
 from itertools import cycle
 from time import time_ns
@@ -15,6 +15,7 @@ from typing import Any, List, Tuple, Dict, Optional
 from psycopg2.extras import Json
 from requests import Session, RequestException, Response
 
+from configs.analysis import MEMENTO_HEADER
 from configs.crawling import USER_AGENT, TODAY
 from configs.database import STORAGE, get_database_cursor
 
@@ -43,12 +44,13 @@ def setup(table_name: str) -> None:
             cursor.execute(f"CREATE INDEX IF NOT EXISTS {table_name}_{column}_idx ON {table_name} ({column})")
 
 
-def reset_failed_crawls(table_name: str, date: datetime = TODAY.date()) -> Dict[datetime, list]:
-    """Delete all crawling results whose status code is not 200 and return the affected start URLs."""
+def reset_failed_archive_crawls(table_name: str, date: date_type = TODAY.date()) -> Dict[datetime, list]:
+    """Delete all crawling results that are missing the memento header, except for responses with status code 404."""
     with get_database_cursor(autocommit=True) as cursor:
         cursor.execute(f"""
-            DELETE FROM {table_name} WHERE crawl_datetime::date=%s AND (status_code IS NULL OR status_code=429)
-        """, (date,))
+            DELETE FROM {table_name}
+            WHERE crawl_datetime::date=%s AND (status_code IS NULL OR headers->>%s IS NULL AND status_code!=404)
+        """, (date, MEMENTO_HEADER.lower()))
 
         cursor.execute(f"""
             SELECT timestamp, ARRAY_AGG(tranco_id) FROM {table_name} WHERE crawl_datetime::date=%s GROUP BY timestamp

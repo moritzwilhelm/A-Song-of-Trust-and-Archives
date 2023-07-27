@@ -15,7 +15,7 @@ from configs.crawling import NUMBER_URLS, INTERNET_ARCHIVE_TIMESTAMP_FORMAT, TIM
 from configs.database import get_database_cursor
 from configs.utils import get_absolute_tranco_file_path, get_tranco_data
 from data_collection.collect_archive_data import WORKERS, ArchiveJob, worker as archive_worker
-from data_collection.crawling import setup, crawl, partition_jobs, CrawlingException, reset_failed_crawls
+from data_collection.crawling import setup, reset_failed_archive_crawls, partition_jobs, CrawlingException, crawl
 
 CANDIDATES_WORKERS = 2
 
@@ -140,7 +140,7 @@ def crawl_proximity_sets(timestamps: List[datetime] = TIMESTAMPS,
                          proxies: Optional[Dict[str, str]] = None,
                          n: int = 10) -> None:
     """Crawl the Internet Archive for the `n` closest candidates of the proximity set."""
-    worked_jobs = reset_failed_crawls(TABLE_NAME)
+    worked_jobs = reset_failed_archive_crawls(TABLE_NAME)
     jobs = []
     with get_database_cursor() as cursor:
         for timestamp in timestamps:
