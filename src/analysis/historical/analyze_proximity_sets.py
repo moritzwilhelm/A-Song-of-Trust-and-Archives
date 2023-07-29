@@ -33,36 +33,6 @@ def get_proximity_set_members(n: int = 10):
     return result
 
 
-def build_strict_proximity_sets(targets: List[Tuple[int, str, str]], n: int = 10) -> None:
-    """Build all (tranco_id, timestamp) proximity where the requested timestamp matches the archived timestamp."""
-    proximity_set_members = get_proximity_set_members(n)
-    with get_database_cursor() as cursor:
-        ps_members_data = {}
-        cursor.execute(f"""
-            SELECT tranco_id, timestamp, headers, substring(end_url FROM %s)
-            FROM {PROXIMITY_SETS_TABLE_NAME}
-            WHERE timestamp=(headers->>%s)::TIMESTAMPTZ
-        """, (INTERNET_ARCHIVE_END_URL_REGEX, MEMENTO_HEADER.lower(),))
-        for tid, archived_timestamp, headers, end_url in cursor.fetchall():
-            ps_members_data[tid, archived_timestamp] = (parse_archived_headers(headers), end_url)
-
-    def get_proximity_set(tranco_id: int, ts_date: date_type) -> List[Tuple[Headers, str]]:
-        """Build the proximity set for (tranco_id, ts_date)."""
-        proximity_set = []
-        for timestamp in proximity_set_members[tranco_id, ts_date]:
-            if (tranco_id, timestamp) in ps_members_data:
-                proximity_set.append(ps_members_data[tranco_id, timestamp])
-        return proximity_set
-
-    proximity_sets = defaultdict(dict)
-    for tid, _, _ in tqdm(targets):
-        for timestamp in TIMESTAMPS:
-            proximity_sets[tid][str(timestamp)] = get_proximity_set(tid, timestamp)
-
-    with open(join_with_json_path(f"PROXIMITY-SETS-STRICT-{n}.json"), 'w') as file:
-        json.dump(proximity_sets, file, indent=2, sort_keys=True, cls=HeadersEncoder)
-
-
 def build_proximity_sets(targets: List[Tuple[int, str, str]], n: int = 10) -> None:
     """Build all (tranco_id, timestamp) proximity sets of size `n` for all `targets`."""
     proximity_set_members = get_proximity_set_members(n)
@@ -115,9 +85,6 @@ def analyze_proximity_sets(proximity_sets_filepath: Path):
 
 
 def main():
-    build_strict_proximity_sets(get_tranco_data())
-    analyze_proximity_sets(join_with_json_path(f"PROXIMITY-SETS-STRICT-{10}.json"))
-
     build_proximity_sets(get_tranco_data())
     analyze_proximity_sets(join_with_json_path(f"PROXIMITY-SETS-{10}.json"))
 

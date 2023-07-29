@@ -38,7 +38,6 @@ def plot_stats(file_path: Path):
 
 def main():
     plot_stats(join_with_json_path(f"STATS-PROXIMITY-SETS-{10}.json"))
-    plot_stats(join_with_json_path(f"STATS-PROXIMITY-SETS-STRICT-{10}.json"))
 
 
 if __name__ == '__main__':

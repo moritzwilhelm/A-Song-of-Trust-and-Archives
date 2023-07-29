@@ -45,9 +45,6 @@ def analyze_differences(urls: List[Tuple[int, str, str]],
 def main():
     for aggregation_function in normalize_headers, classify_headers:
         analyze_differences(get_tranco_data(),
-                            join_with_json_path(f"PROXIMITY-SETS-STRICT-{10}.json"),
-                            aggregation_function=aggregation_function)
-        analyze_differences(get_tranco_data(),
                             join_with_json_path(f"PROXIMITY-SETS-{10}.json"),
                             aggregation_function=aggregation_function)
 
