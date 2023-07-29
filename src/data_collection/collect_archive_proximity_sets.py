@@ -22,8 +22,8 @@ CANDIDATES_WORKERS = 2
 TABLE_NAME = 'HISTORICAL_DATA_PROXIMITY_SETS'
 CANDIDATES_TABLE_NAME = 'PROXIMITY_SET_CANDIDATES'
 
-CDX_REQUEST = "https://web.archive.org/cdx/search/cdx" + \
-              "?url={url}&output=json&fl=timestamp&filter=!statuscode:3..&from={from_timestamp}&to={to_timestamp}"
+CDX_REQUEST = 'https://web.archive.org/cdx/search/cdx' + \
+              '?url={url}&output=json&fl=timestamp&filter=!statuscode:3..&from={from_timestamp}&to={to_timestamp}'
 
 
 class CdxJob(NamedTuple):
@@ -89,7 +89,7 @@ def find_candidates(url: str,
         raise CrawlingException(url) from error
 
     if timestamps:
-        timestamps = sorted(chain.from_iterable(timestamps[1:]), key=timestamp_distance)
+        timestamps = sorted(set(chain.from_iterable(timestamps[1:])), key=timestamp_distance)
 
     return timestamps[:n]
 
@@ -146,7 +146,7 @@ def crawl_proximity_sets(timestamps: List[datetime] = TIMESTAMPS,
         for timestamp in timestamps:
             cursor.execute(f"""
                 SELECT tranco_id, domain, url, candidates
-                FROM {CANDIDATES_TABLE_NAME} 
+                FROM {CANDIDATES_TABLE_NAME}
                 WHERE timestamp=%s AND candidates!='[]'
             """, (timestamp,))
 
