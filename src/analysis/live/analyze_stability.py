@@ -65,7 +65,7 @@ def analyze_archived_snapshots(targets: List[Tuple[int, str, str]],
         archive_data = {}
         with get_database_cursor() as cursor:
             cursor.execute(f"""
-                SELECT tranco_id, crawl_datetime::date, end_url, (headers->>%s)::TIMESTAMPTZ, status_code 
+                SELECT tranco_id, crawl_datetime::date, end_url, (headers->>%s)::TIMESTAMPTZ, status_code
                 FROM {ARCHIVE_TABLE_NAME}
                 WHERE timestamp=%s AND (headers->>%s IS NOT NULL OR status_code=404)
             """, (MEMENTO_HEADER.lower(), requested_date, MEMENTO_HEADER.lower()))
@@ -85,19 +85,11 @@ def analyze_archived_snapshots(targets: List[Tuple[int, str, str]],
                         status = previous_status
                 else:
                     end_url, memento_datetime, status_code = archive_data[tid, date]
-                    if memento_datetime is None:
-                        assert status_code == 404
+                    if memento_datetime is None or abs(memento_datetime - requested_date) > timedelta(1):
                         if previous_status in (Status.ADDED, Status.MODIFIED, Status.UNMODIFIED):
                             status = Status.REMOVED
                         else:
                             status = Status.MISSING
-                    elif abs(memento_datetime - requested_date) > timedelta(1):
-                        if previous_status in (Status.ADDED, Status.MODIFIED):
-                            status = Status.UNMODIFIED
-                        elif previous_status == Status.REMOVED:
-                            status = Status.MISSING
-                        else:
-                            status = previous_status
                     else:
                         if previous_status in (Status.MISSING, Status.REMOVED):
                             status = Status.ADDED
@@ -122,11 +114,6 @@ def main():
     # ARCHIVE DATA
     analyze_archived_snapshots(
         get_tranco_data()
-    )
-
-    analyze_archived_snapshots(
-        get_tranco_data(),
-        start=get_aggregated_timestamp(ARCHIVE_TABLE_NAME, 'MIN') + timedelta(days=1)
     )
 
 
