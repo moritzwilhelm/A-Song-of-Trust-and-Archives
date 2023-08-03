@@ -11,7 +11,7 @@ from configs.crawling import NUMBER_URLS, TIMESTAMPS
 from configs.random_sample_tranco import RANDOM_SAMPLING_TABLE_NAME
 from configs.utils import join_with_json_path, join_with_plots_path, json_to_plots_path
 from data_collection.collect_archive_data import TABLE_NAME
-from plotting.plotting_utils import COLORS, get_year_ticks
+from plotting.plotting_utils import COLORS, get_year_ticks, latexify
 
 
 def plot_hits(hits_input_path: Path, fresh_hits_input_path: Path) -> None:
@@ -25,9 +25,11 @@ def plot_hits(hits_input_path: Path, fresh_hits_input_path: Path) -> None:
 
     axes = data.plot.bar(color=COLORS, grid=True, ylim=(0, NUMBER_URLS))
     axes.legend(loc='lower right')
+    axes.set_xlabel('Timestamp')
     axes.set_xticks(*get_year_ticks(), rotation=0)
+    axes.set_ylabel('Number of domains')
 
-    output_filename = f"{commonprefix((hits_input_path.name, fresh_hits_input_path.name)).rstrip('-')}.pdf"
+    output_filename = f"{commonprefix((hits_input_path.name, fresh_hits_input_path.name)).rstrip('-')}.png"
     axes.figure.savefig(join_with_plots_path(output_filename), bbox_inches='tight', dpi=300)
 
     axes.figure.show()
@@ -64,22 +66,24 @@ def plot_hits_per_buckets(input_path: Path):
     """Plot the number of archive hits per 100k bucket."""
     with open(input_path) as file:
         data = pd.read_json(file, orient='index')
+        data = pd.concat([data, pd.DataFrame(index=data.index[:4 - len(TIMESTAMPS) % 4])])
 
     for i in range(0, len(data), 8):
         axes = data.iloc[i:i + 8].plot.bar(color=COLORS, grid=True, ylim=(0, NUMBER_URLS // 10))
-        axes.legend([f"{bucket}k" for bucket in data.columns])
         axes.set_xlabel('Timestamp')
         axes.set_xticks([0, 4], sorted({date.year for date in TIMESTAMPS[i:i + 8]}), rotation=0)
-        axes.set_ylabel('Hits')
+        axes.set_ylabel('Hits' if 'None-w' in input_path.name else 'Fresh Hits')
         axes.set_yticks(range(0, (NUMBER_URLS // 10) + 1, NUMBER_URLS // 100))
         axes.yaxis.set_major_formatter(PercentFormatter(xmax=NUMBER_URLS / 10))
-
-        axes.figure.savefig(json_to_plots_path(input_path), bbox_inches='tight', dpi=300)
+        axes.legend([f"{bucket}k" for bucket in data.columns], ncol=5, loc='upper center', bbox_to_anchor=(0.5, 1.16))
+        axes.figure.savefig(json_to_plots_path(input_path, f".{TIMESTAMPS[i].year}-{TIMESTAMPS[i + 4].year}.png"),
+                            bbox_inches='tight', dpi=300)
 
         axes.figure.show()
         plt.close()
 
 
+@latexify(xtick_minor_visible=True)
 def main():
     for table_name in TABLE_NAME, RANDOM_SAMPLING_TABLE_NAME:
         plot_hits(

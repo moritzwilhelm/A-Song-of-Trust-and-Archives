@@ -78,7 +78,6 @@ def analyze_proximity_sets(proximity_sets_filepath: Path):
     for tid in data:
         for timestamp, proximity_set in data[tid].items():
             result[timestamp]['Set size'].append(len(proximity_set))
-            result[timestamp]['Number of distinct urls'].append(len({end_url for _, end_url in proximity_set}))
 
     with open(proximity_sets_filepath.with_name(f"STATS-{proximity_sets_filepath.name}"), 'w') as file:
         json.dump(result, file, indent=2, sort_keys=True)

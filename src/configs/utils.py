@@ -20,7 +20,7 @@ def join_with_plots_path(filename: str) -> Path:
     return PROJECT_ROOT.joinpath('results', 'plots', filename)
 
 
-def json_to_plots_path(file_path: Path, extension: str = '.pdf') -> Path:
+def json_to_plots_path(file_path: Path, extension: str = '.png') -> Path:
     """Return absolute path in the results/plots directory based on the given json `file_path` and file `extension`."""
     return join_with_plots_path(file_path.with_suffix(extension).name)
 
