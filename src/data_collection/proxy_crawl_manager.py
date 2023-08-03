@@ -4,7 +4,9 @@ from multiprocessing import Process, pool
 from subprocess import run
 from typing import List, Dict, Optional
 
+import requests
 from pytz import utc
+from requests import get
 
 from configs.crawling import TIMESTAMPS, TODAY, SOCKS_PROXIES
 from configs.utils import date_range
@@ -34,7 +36,7 @@ def parse_args() -> Arguments:
     """Parse command line arguments for starting crawlers distributed over different proxies."""
     parser = ArgumentParser(description='Start archive crawlers and distribute over proxies.')
     parser.add_argument('crawl_type', metavar='<crawl_type>',
-                        choices=['proximity_set_indexes', 'proximity_sets', 'daily_archive'],
+                        choices=['test_proxies', 'proximity_set_indexes', 'proximity_sets', 'daily_archive'],
                         help='the type of crawl to start')
     return parser.parse_args()
 
@@ -55,6 +57,16 @@ def close_socks_proxies() -> None:
     """Close the open socks proxies in the background."""
     for port, remote in SOCKS_PROXIES.items():
         run(['ssh', '-S', port, '-O', 'exit', '-i', '~/.ssh/Proxies', remote])
+
+
+def test_socks_proxies() -> None:
+    """Test availability of socks proxies."""
+    assert requests.get('https://api.ipify.org?format=json').status_code == 200, 'IP API is down.'
+
+    for port, remote in SOCKS_PROXIES.items():
+        proxies = dict(http=f"socks5://localhost:{port}", https=f"socks5://localhost:{port}")
+        assert get('https://api.ipify.org?format=json', proxies=proxies).json()['ip'] == remote.split('@')[1], \
+            f"Socks proxy ({port}, {remote}) is broken."
 
 
 def crawl_web_archive_cdx_worker(timestamps: List[datetime], proxies: Optional[Dict[str, str]]) -> None:
@@ -95,15 +107,17 @@ def main():
     proxy_configs = build_socks_proxy_configs()
 
     open_socks_proxies()
-
-    if args.crawl_type == 'proximity_set_indexes':
-        start_collect_archive_proximity_set_indexes(proxy_configs)
-    elif args.crawl_type == 'proximity_sets':
-        start_collect_archive_proximity_sets(proxy_configs)
-    elif args.crawl_type == 'daily_archive':
-        start_collect_daily_archive_data(proxy_configs)
-
-    close_socks_proxies()
+    try:
+        if args.crawl_type == 'test_proxies':
+            test_socks_proxies()
+        elif args.crawl_type == 'proximity_set_indexes':
+            start_collect_archive_proximity_set_indexes(proxy_configs)
+        elif args.crawl_type == 'proximity_sets':
+            start_collect_archive_proximity_sets(proxy_configs)
+        elif args.crawl_type == 'daily_archive':
+            start_collect_daily_archive_data(proxy_configs)
+    finally:
+        close_socks_proxies()
 
 
 if __name__ == '__main__':
