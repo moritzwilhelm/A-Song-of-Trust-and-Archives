@@ -1,5 +1,6 @@
 import json
 from contextlib import contextmanager
+from pathlib import Path
 from typing import Any
 
 from psycopg2 import connect
@@ -15,7 +16,7 @@ DB_PORT = 5432
 DB_NAME = 'archive_moritz'
 
 # STORAGE
-STORAGE = '/data/maws/'
+STORAGE = Path('/data/maws/')
 
 
 def json_loads_ci(*args: Any, **kwargs: Any) -> Any:

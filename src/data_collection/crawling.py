@@ -1,5 +1,4 @@
 import gzip
-import os
 import random
 import signal
 import traceback
@@ -90,10 +89,8 @@ def timeout(seconds: int):
 def store_on_disk(content: bytes) -> str:
     """Store the provided content on the disk and compute the content hash."""
     content_hash = sha256(content).hexdigest()
-    file_dir = os.path.join(STORAGE, content_hash[0], content_hash[1])
-    if not os.path.exists(file_dir):
-        os.makedirs(file_dir)
-    file_path = os.path.join(file_dir, f"{content_hash}.gz")
+    file_path = STORAGE.joinpath(content_hash[0], content_hash[1], f"{content_hash}.gz")
+    file_path.parent.mkdir(parents=True, exist_ok=True)
     with gzip.open(file_path, 'wb') as fh:
         fh.write(content)
 
