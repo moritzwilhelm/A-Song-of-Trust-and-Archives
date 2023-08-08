@@ -1,7 +1,7 @@
 import json
 from collections import defaultdict
 from datetime import datetime, date as date_type, timedelta
-from typing import Callable, List, Tuple, Optional
+from typing import Callable
 
 from tqdm import tqdm
 
@@ -14,10 +14,10 @@ from configs.utils import join_with_json_path, get_tranco_data, date_range
 from data_collection.collect_live_data import TABLE_NAME as LIVE_TABLE_NAME
 
 
-def analyze_live_data(targets: List[Tuple[int, str, str]],
+def analyze_live_data(targets: list[tuple[int, str, str]],
                       start: date_type = get_aggregated_timestamp_date(LIVE_TABLE_NAME, 'MIN'),
                       end: date_type = get_aggregated_timestamp_date(LIVE_TABLE_NAME, 'MAX'),
-                      aggregation_function: Callable[[Headers, Optional[str]], Headers] = normalize_headers) -> None:
+                      aggregation_function: Callable[[Headers, str | None], Headers] = normalize_headers) -> None:
     """Compute the stability of (crawled) live data from `start` date up to (inclusive) `end` date."""
     assert start <= end
 
@@ -53,7 +53,7 @@ def analyze_live_data(targets: List[Tuple[int, str, str]],
 ARCHIVE_TABLE_NAME = 'HISTORICAL_DATA_20230716_20230730'
 
 
-def analyze_archived_snapshots(targets: List[Tuple[int, str, str]],
+def analyze_archived_snapshots(targets: list[tuple[int, str, str]],
                                start: datetime = get_aggregated_timestamp(ARCHIVE_TABLE_NAME, 'MIN'),
                                end: datetime = get_aggregated_timestamp(ARCHIVE_TABLE_NAME, 'MAX'),
                                n: int = 14) -> None:

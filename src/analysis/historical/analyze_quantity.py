@@ -1,7 +1,6 @@
 import json
 from collections import defaultdict
 from datetime import datetime, timedelta
-from typing import Tuple, Optional
 
 from tqdm import tqdm
 
@@ -13,7 +12,7 @@ from configs.utils import join_with_json_path
 from data_collection.collect_archive_data import TABLE_NAME
 
 
-def compute_tolerance_window(timestamp: datetime, weeks: Optional[int] = None) -> Tuple[datetime, datetime]:
+def compute_tolerance_window(timestamp: datetime, weeks: int | None = None) -> tuple[datetime, datetime]:
     """Return a start and end datetime based on the provided `timestamp` and number of `weeks` of tolerance."""
     if weeks is not None:
         return timestamp - timedelta(weeks=weeks), timestamp + timedelta(weeks=weeks)
@@ -21,7 +20,7 @@ def compute_tolerance_window(timestamp: datetime, weeks: Optional[int] = None) -
         return datetime.min, datetime.max
 
 
-def compute_hits(table_name: str, tolerance: int = None):
+def compute_hits(table_name: str, tolerance: int | None = None):
     """Compute the number of archive hits that match the given `tolerance` in weeks."""
     num_hits = {}
     for timestamp in tqdm(TIMESTAMPS):
@@ -38,7 +37,7 @@ def compute_hits(table_name: str, tolerance: int = None):
         json.dump(num_hits, file, indent=2, sort_keys=True)
 
 
-def compute_drifts(table_name: str, tolerance: int = None):
+def compute_drifts(table_name: str, tolerance: int | None = None):
     """Collect the drifts between archived date and requested date, only considering hits that match the `tolerance`."""
     drifts = defaultdict(list)
     for timestamp in tqdm(TIMESTAMPS):
@@ -57,7 +56,7 @@ def compute_drifts(table_name: str, tolerance: int = None):
         json.dump(drifts, file, indent=2, sort_keys=True)
 
 
-def compute_hits_per_bucket(tolerance: int = None):
+def compute_hits_per_bucket(tolerance: int | None = None):
     """Compute the number of archive hits per 100k bucket that match the given `tolerance` in weeks."""
     num_hits = defaultdict(dict)
     for start, end in tqdm([(i, i + 99_999) for i in range(1, 1_000_000, 100_000)]):

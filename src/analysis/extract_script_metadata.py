@@ -1,7 +1,7 @@
 import gzip
 import re
 from multiprocessing import Pool
-from typing import NamedTuple, List, Set, Callable
+from typing import NamedTuple, Callable
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
@@ -25,7 +25,7 @@ class AnalysisJob(NamedTuple):
     """Represents a job for analyzing the set of included scripts in an HTML file."""
     content_hash: str
     end_url: str
-    sources_filter: Callable[[Set[str]], Set[str]]
+    sources_filter: Callable[[set[str]], set[str]]
 
 
 def setup_metadata_table() -> None:
@@ -48,13 +48,13 @@ def setup_metadata_table() -> None:
             """)
 
 
-def archive_sources_filter(sources: Set[str]) -> Set[str]:
+def archive_sources_filter(sources: set[str]) -> set[str]:
     """Collect all original sources mirrored by the Internet Archive."""
     matched_sources = (re.match(INTERNET_ARCHIVE_SOURCE_REGEX, source) for source in sources)
     return {source.group(2) for source in matched_sources if source is not None}
 
 
-def worker(jobs: List[AnalysisJob]) -> None:
+def worker(jobs: list[AnalysisJob]) -> None:
     """Extract all hosts/sites included in the given HTML document."""
     with get_database_cursor(autocommit=True) as cursor:
         for content_hash, end_url, sources_filter in jobs:
@@ -77,7 +77,7 @@ def worker(jobs: List[AnalysisJob]) -> None:
 
 
 def prepare_jobs(table_name: str,
-                 sources_filter: Callable[[Set[str]], Set[str]] = archive_sources_filter) -> List[AnalysisJob]:
+                 sources_filter: Callable[[set[str]], set[str]] = archive_sources_filter) -> list[AnalysisJob]:
     """Generate AnalysisJob list for all missing content_hashes in `table_name`."""
     with get_database_cursor(autocommit=True) as cursor:
         cursor.execute(f"""
@@ -90,7 +90,7 @@ def prepare_jobs(table_name: str,
         return [AnalysisJob(*data, sources_filter=sources_filter) for data in cursor.fetchall()]
 
 
-def run_jobs(jobs: List[AnalysisJob]) -> None:
+def run_jobs(jobs: list[AnalysisJob]) -> None:
     """Execute the provided AnalysisJobs using multiprocessing."""
     with Pool(WORKERS) as pool:
         pool.map(worker, partition_jobs(jobs, WORKERS))

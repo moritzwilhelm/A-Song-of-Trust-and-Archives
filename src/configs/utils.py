@@ -1,8 +1,8 @@
+from collections.abc import Generator
 from datetime import datetime, date, timedelta
 from itertools import islice
 from math import inf
 from pathlib import Path
-from typing import List, Tuple, Union, Generator
 
 from configs.crawling import NUMBER_URLS, PREFIX
 
@@ -27,11 +27,11 @@ def json_to_plots_path(file_path: Path, extension: str = '.png') -> Path:
 
 def get_absolute_tranco_file_path() -> Path:
     """Return absolute path to the Tranco file."""
-    return PROJECT_ROOT.joinpath('src', 'configs', 'tranco_W9JG9.csv')
+    return INSTALLED_PROJECT_ROOT.joinpath('src', 'configs', 'tranco_W9JG9.csv')
 
 
 def get_tranco_data(tranco_file: Path = get_absolute_tranco_file_path(),
-                    n: int = NUMBER_URLS) -> List[Tuple[int, str, str]]:
+                    n: int = NUMBER_URLS) -> list[tuple[int, str, str]]:
     """Read `n` domains from the given `tranco_file` and expand them into full urls by prepending `PREFIX`."""
     data = []
     with open(tranco_file) as file:
@@ -41,8 +41,6 @@ def get_tranco_data(tranco_file: Path = get_absolute_tranco_file_path(),
     return data
 
 
-def date_range(start: Union[datetime, date],
-               end: Union[datetime, date],
-               n: int = inf) -> Generator[Union[datetime, date], None, None]:
+def date_range(start: datetime | date, end: datetime | date, n: int = inf) -> Generator[datetime | date, None, None]:
     """Yield a generator covering all (or at most `n`) dates from `start` up to (including) `end`."""
     return (start + timedelta(i) for i in range(min((end - start).days + 1, n)))

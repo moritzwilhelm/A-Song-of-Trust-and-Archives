@@ -2,7 +2,7 @@ from datetime import datetime
 from multiprocessing import Pool
 from pathlib import Path
 from time import sleep
-from typing import NamedTuple, List, Dict, Optional
+from typing import NamedTuple
 
 import requests
 
@@ -22,10 +22,10 @@ class ArchiveJob(NamedTuple):
     tranco_id: int
     domain: str
     url: str
-    proxies: Optional[Dict[str, str]] = None
+    proxies: dict[str, str] | None = None
 
 
-def worker(jobs: List[ArchiveJob], table_name=TABLE_NAME) -> None:
+def worker(jobs: list[ArchiveJob], table_name=TABLE_NAME) -> None:
     """Crawl all provided `urls` and store the responses in the database."""
     with get_database_cursor(autocommit=True) as cursor:
         session = requests.Session()
@@ -47,9 +47,9 @@ def worker(jobs: List[ArchiveJob], table_name=TABLE_NAME) -> None:
 
 
 def prepare_jobs(tranco_file: Path = get_absolute_tranco_file_path(),
-                 timestamps: List[datetime] = TIMESTAMPS,
-                 proxies: Optional[Dict[str, str]] = None,
-                 n: int = NUMBER_URLS) -> List[ArchiveJob]:
+                 timestamps: list[datetime] = TIMESTAMPS,
+                 proxies: dict[str, str] | None = None,
+                 n: int = NUMBER_URLS) -> list[ArchiveJob]:
     """Generate ArchiveJob list for Tranco file, timestamps, and max domains per timestamp."""
     worked_jobs = reset_failed_archive_crawls(TABLE_NAME)
     timestamp_strings = [timestamp.strftime(INTERNET_ARCHIVE_TIMESTAMP_FORMAT) for timestamp in timestamps]
@@ -62,7 +62,7 @@ def prepare_jobs(tranco_file: Path = get_absolute_tranco_file_path(),
     ]
 
 
-def run_jobs(jobs: List[ArchiveJob]) -> None:
+def run_jobs(jobs: list[ArchiveJob]) -> None:
     """Execute the provided crawl jobs using multiprocessing."""
     with Pool(WORKERS) as pool:
         pool.map(worker, partition_jobs(jobs, WORKERS))

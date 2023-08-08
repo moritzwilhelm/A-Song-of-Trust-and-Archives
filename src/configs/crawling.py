@@ -11,11 +11,12 @@ USER_AGENT = \
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36'
 
 TODAY = datetime.now(utc)
+FINAL_TIMESTAMP = datetime(2023, 4, 15, 12, tzinfo=utc)
 TIMESTAMPS = tuple(
-    datetime(year, month, 15, 12, tzinfo=utc)
+    timestamp
     for year in range(2016, TODAY.year + 1)
     for month in [1, 4, 7, 10]
-    if datetime(year, month, 15, 12, tzinfo=utc) < datetime(2023, 7, 15, 12, tzinfo=utc)
+    if (timestamp := datetime(year, month, 15, 12, tzinfo=utc)) <= FINAL_TIMESTAMP
 )
 
 SOCKS_PROXIES = {

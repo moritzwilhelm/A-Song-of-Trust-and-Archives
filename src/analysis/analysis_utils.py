@@ -1,4 +1,4 @@
-from typing import Any, Tuple
+from typing import Any
 
 import pandas as pd
 from urllib3.util import parse_url
@@ -8,7 +8,7 @@ from configs.analysis import RELEVANT_HEADERS, INTERNET_ARCHIVE_HEADER_PREFIX, M
 from configs.database import get_database_cursor, get_database_connection
 
 
-def sql_to_dataframe(query: str, query_args: Tuple[Any, ...] = ()) -> pd.DataFrame:
+def sql_to_dataframe(query: str, query_args: tuple = ()) -> pd.DataFrame:
     """Read SQL query into a Pandas DataFrame."""
     with get_database_cursor() as cursor:
         query = cursor.mogrify(query, query_args)
@@ -24,11 +24,13 @@ def parse_origin(url: str) -> str:
     return origin
 
 
+# TODO remove SQLi
 def get_aggregated_timestamp(table_name: str, aggregation_function: str) -> Any:
     """Apply the `aggregation_function` on all timestamps in `table_name` and return the resulting value."""
     with get_database_cursor() as cursor:
         cursor.execute(f"SELECT {aggregation_function}(timestamp) FROM {table_name}")
         return cursor.fetchone()[0]
+
 
 def get_aggregated_timestamp_date(table_name: str, aggregation_function: str) -> Any:
     """Apply the `aggregation_function` on all timestamp::dates in `table_name` and return the resulting value."""

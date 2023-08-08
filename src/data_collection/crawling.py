@@ -3,13 +3,13 @@ import random
 import signal
 import traceback
 from collections import defaultdict
+from collections.abc import Generator
 from contextlib import contextmanager
 from datetime import datetime, date as date_type
 from hashlib import sha256
 from itertools import cycle
 from time import time_ns
 from types import FrameType
-from typing import Any, List, Tuple, Dict, Optional
 
 from psycopg2.extras import Json
 from requests import Session, RequestException, Response
@@ -43,7 +43,7 @@ def setup(table_name: str) -> None:
             cursor.execute(f"CREATE INDEX IF NOT EXISTS {table_name}_{column}_idx ON {table_name} ({column})")
 
 
-def reset_failed_archive_crawls(table_name: str, date: date_type = TODAY.date()) -> Dict[datetime, list]:
+def reset_failed_archive_crawls(table_name: str, date: date_type = TODAY.date()) -> dict[datetime, set[int]]:
     """Delete all crawling results that are missing the memento header, except for responses with status code 404."""
     with get_database_cursor(autocommit=True) as cursor:
         cursor.execute(f"""
@@ -54,10 +54,10 @@ def reset_failed_archive_crawls(table_name: str, date: date_type = TODAY.date())
         cursor.execute(f"""
             SELECT timestamp, ARRAY_AGG(tranco_id) FROM {table_name} WHERE crawl_datetime::date=%s GROUP BY timestamp
         """, (date,))
-        return defaultdict(list, cursor.fetchall())
+        return defaultdict(set, set(cursor.fetchall()))
 
 
-def partition_jobs(jobs: List[Any], n: int) -> List[List[Any]]:
+def partition_jobs(jobs: list, n: int) -> list[list]:
     """Partition list of jobs into `n` partitions of (almost) equal size."""
     partition = [[] for _ in range(n)]
 
@@ -69,10 +69,10 @@ def partition_jobs(jobs: List[Any], n: int) -> List[List[Any]]:
 
 
 @contextmanager
-def timeout(seconds: int):
+def timeout(seconds: int) -> Generator[None, None, None]:
     """Wrapper that throws a TimeoutError after `seconds` seconds."""
 
-    def raise_timeout(signal_number: int, frame: Optional[FrameType]) -> None:
+    def raise_timeout(signal_number: int, frame: FrameType | None) -> None:
         raise TimeoutError(f"Hard kill due to signal timeout ({seconds}s)!")
 
     # Register a function to raise a TimeoutError on the signal.
@@ -120,15 +120,15 @@ class CrawlingResponse(Response):
         self.response_time = response_time
 
     @property
-    def serialized_data(self) -> Tuple[str, int, Json, str, int]:
+    def serialized_data(self) -> tuple[str, int, Json, str, int]:
         return self.url, self.status_code, Json(dict(self.headers)), self.content_hash, self.response_time
 
 
 def crawl(url: str,
-          headers: Optional[Dict[str, str]] = None,
+          headers: dict[str, str] | None = None,
           user_agent: str = USER_AGENT,
-          proxies: Optional[Dict[str, str]] = None,
-          session: Optional[Session] = None) -> CrawlingResponse:
+          proxies: dict[str, str] | None = None,
+          session: Session | None = None) -> CrawlingResponse:
     """Crawl the URL, using the provided `headers`, `user_agent`, `session` (if specified).
 
     Return the response object and its hashed content. Raise a CrawlingException on failure.

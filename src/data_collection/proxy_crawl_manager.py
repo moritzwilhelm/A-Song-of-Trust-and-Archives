@@ -2,7 +2,6 @@ from argparse import ArgumentParser, Namespace as Arguments
 from datetime import datetime
 from multiprocessing import Process, pool
 from subprocess import run
-from typing import List, Dict, Optional
 
 import requests
 from pytz import utc
@@ -41,7 +40,7 @@ def parse_args() -> Arguments:
     return parser.parse_args()
 
 
-def build_socks_proxy_configs() -> List[Optional[Dict[str, str]]]:
+def build_socks_proxy_configs() -> list[dict[str, str] | None]:
     """Create the set of socks proxy configs."""
     return [dict(http=f"socks5://localhost:{port}",
                  https=f"socks5://localhost:{port}") for port in SOCKS_PROXIES] + [None]
@@ -69,24 +68,24 @@ def test_socks_proxies() -> None:
             f"Socks proxy ({port}, {remote}) is broken."
 
 
-def crawl_web_archive_cdx_worker(timestamps: List[datetime], proxies: Optional[Dict[str, str]]) -> None:
+def crawl_web_archive_cdx_worker(timestamps: list[datetime], proxies: dict[str, str] | None) -> None:
     """Worker that initiates the Internet Archive CDX server crawl."""
     crawl_web_archive_cdx(timestamps=timestamps, proxies=proxies)
 
 
-def start_collect_archive_proximity_set_indexes(configs: List[Optional[Dict[str, str]]]) -> None:
+def start_collect_archive_proximity_set_indexes(configs: list[dict[str, str] | None]) -> None:
     """Start crawling the Internet Archive CDX server with the provided set of proxies."""
     with NoDaemonPool(len(configs)) as nd_pool:
         nd_pool.starmap(crawl_web_archive_cdx_worker, zip(partition_jobs(list(TIMESTAMPS), len(configs)), configs))
 
 
-def start_collect_archive_proximity_sets(configs: List[Optional[Dict[str, str]]]) -> None:
+def start_collect_archive_proximity_sets(configs: list[dict[str, str] | None]) -> None:
     """Start crawling the Internet Archive CDX server with the provided set of proxies."""
     with NoDaemonPool(len(configs)) as nd_pool:
         nd_pool.starmap(crawl_proximity_sets, zip(partition_jobs(list(TIMESTAMPS), len(configs)), configs))
 
 
-def crawl_daily_web_archive_worker(timestamps: List[datetime], proxies: Optional[Dict[str, str]]) -> None:
+def crawl_daily_web_archive_worker(timestamps: list[datetime], proxies: dict[str, str] | None) -> None:
     """Worker that initiates the daily Internet Archive crawl."""
     jobs = prepare_archive_jobs(timestamps=timestamps, proxies=proxies)
     run_archive_jobs(jobs)
@@ -95,7 +94,7 @@ def crawl_daily_web_archive_worker(timestamps: List[datetime], proxies: Optional
 START_TIMESTAMP = datetime(2023, 7, 16, 12, tzinfo=utc)
 
 
-def start_collect_daily_archive_data(configs: List[Optional[Dict[str, str]]]) -> None:
+def start_collect_daily_archive_data(configs: list[dict[str, str] | None]) -> None:
     """Start crawling the Internet Archive for all dates in [START_DATE, START_DATE + 14], distributing over proxies."""
     relevant_timestamps = list(filter(lambda date: (TODAY - date).days < 15, date_range(START_TIMESTAMP, TODAY, 15)))
     with NoDaemonPool(len(configs)) as nd_pool:

@@ -4,7 +4,7 @@ from itertools import chain
 from multiprocessing import Pool
 from pathlib import Path
 from time import sleep
-from typing import NamedTuple, List, Optional, Dict
+from typing import NamedTuple
 
 import requests
 from psycopg2.extras import Json
@@ -32,7 +32,7 @@ class CdxJob(NamedTuple):
     tranco_id: int
     domain: str
     url: str
-    proxies: Optional[Dict[str, str]] = None
+    proxies: dict[str, str] | None = None
 
 
 def setup_candidates_lists_table() -> None:
@@ -56,7 +56,7 @@ def setup_candidates_lists_table() -> None:
             """)
 
 
-def reset_failed_cdx_crawls() -> Dict[datetime, List[int]]:
+def reset_failed_cdx_crawls() -> dict[datetime, list[int]]:
     """Delete all crawling results with an error."""
     with get_database_cursor(autocommit=True) as cursor:
         cursor.execute(f"DELETE FROM {CANDIDATES_TABLE_NAME} WHERE error IS NOT NULL")
@@ -67,8 +67,8 @@ def reset_failed_cdx_crawls() -> Dict[datetime, List[int]]:
 def find_candidates(url: str,
                     timestamp: datetime,
                     n: int,
-                    proxies: Optional[Dict[str, str]] = None,
-                    session: Optional[Session] = None) -> List[str]:
+                    proxies: dict[str, str] | None = None,
+                    session: Session | None = None) -> list[str]:
     """Collect the `n` best candidates for the proximity set of (`url`, `timestamp`)."""
     response = crawl(
         CDX_REQUEST.format(
@@ -94,7 +94,7 @@ def find_candidates(url: str,
     return timestamps[:n]
 
 
-def cdx_worker(jobs: List[CdxJob]) -> None:
+def cdx_worker(jobs: list[CdxJob]) -> None:
     """Crawl the CDX server for all provided `urls` and `timestamps` and store the responses in the database."""
     session = requests.Session()
     with get_database_cursor(autocommit=True) as cursor:
@@ -114,9 +114,9 @@ def cdx_worker(jobs: List[CdxJob]) -> None:
 
 
 def crawl_web_archive_cdx(tranco_file: Path = get_absolute_tranco_file_path(),
-                          timestamps: List[datetime] = TIMESTAMPS,
+                          timestamps: list[datetime] = TIMESTAMPS,
                           n: int = NUMBER_URLS,
-                          proxies: Optional[Dict[str, str]] = None) -> None:
+                          proxies: dict[str, str] | None = None) -> None:
     """Crawl the Internet Archive CDX server for candidates for each (url, timestamp) proximity set."""
     worked_jobs = reset_failed_cdx_crawls()
 
@@ -131,13 +131,13 @@ def crawl_web_archive_cdx(tranco_file: Path = get_absolute_tranco_file_path(),
         pool.map(cdx_worker, partition_jobs(jobs, CANDIDATES_WORKERS))
 
 
-def proximity_sets_worker(jobs: List[ArchiveJob]) -> None:
+def proximity_sets_worker(jobs: list[ArchiveJob]) -> None:
     """Wrapper function for the Internet Archive worker that fixes the table name to `TABLE_NAME`."""
     return archive_worker(jobs, table_name=TABLE_NAME)
 
 
-def crawl_proximity_sets(timestamps: List[datetime] = TIMESTAMPS,
-                         proxies: Optional[Dict[str, str]] = None,
+def crawl_proximity_sets(timestamps: list[datetime] = TIMESTAMPS,
+                         proxies: dict[str, str] | None = None,
                          n: int = 10) -> None:
     """Crawl the Internet Archive for the `n` closest candidates of the proximity set."""
     worked_jobs = reset_failed_archive_crawls(TABLE_NAME)
@@ -154,8 +154,9 @@ def crawl_proximity_sets(timestamps: List[datetime] = TIMESTAMPS,
                 ArchiveJob(ts, tid, domain, INTERNET_ARCHIVE_URL.format(timestamp=timestamp_str, url=url), proxies)
                 for tid, domain, url, candidates in cursor.fetchall()
                 for timestamp_str in candidates[:n]
-                for ts in (datetime.strptime(timestamp_str, INTERNET_ARCHIVE_TIMESTAMP_FORMAT).replace(tzinfo=utc),)
-                if tid not in worked_jobs[ts]
+                if tid not in worked_jobs[
+                    ts := datetime.strptime(timestamp_str, INTERNET_ARCHIVE_TIMESTAMP_FORMAT).replace(tzinfo=utc)
+                ]
             ]
 
     with Pool(WORKERS) as pool:

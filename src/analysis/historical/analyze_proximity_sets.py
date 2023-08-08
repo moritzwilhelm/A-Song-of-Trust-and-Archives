@@ -2,7 +2,6 @@ import json
 from collections import defaultdict
 from datetime import datetime, date as date_type, timedelta
 from pathlib import Path
-from typing import List, Tuple
 
 from pytz import utc
 from tqdm import tqdm
@@ -33,7 +32,7 @@ def get_proximity_set_members(n: int = 10):
     return result
 
 
-def build_proximity_sets(targets: List[Tuple[int, str, str]], n: int = 10) -> None:
+def build_proximity_sets(targets: list[tuple[int, str, str]], n: int = 10) -> None:
     """Build all (tranco_id, timestamp) proximity sets of size `n` for all `targets`."""
     proximity_set_members = get_proximity_set_members(n)
     with get_database_cursor() as cursor:
@@ -48,7 +47,7 @@ def build_proximity_sets(targets: List[Tuple[int, str, str]], n: int = 10) -> No
             for tid, request_timestamp, archived_timestamp, headers, end_url in cursor.fetchall():
                 ps_members_data[tid, request_timestamp] = (archived_timestamp, parse_archived_headers(headers), end_url)
 
-    def get_proximity_set(tranco_id: int, ts_date: date_type) -> List[Tuple[Headers, str]]:
+    def get_proximity_set(tranco_id: int, ts_date: date_type) -> list[tuple[Headers, str]]:
         """Build the proximity set for (tranco_id, ts_date) and drop duplicate members."""
         proximity_set = []
         seen_timestamps = set()

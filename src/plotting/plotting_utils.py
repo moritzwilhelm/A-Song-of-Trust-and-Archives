@@ -1,6 +1,6 @@
 import functools
 from math import sqrt
-from typing import Tuple, List, Optional, Callable
+from typing import Callable
 
 import matplotlib
 import seaborn as sns
@@ -23,12 +23,12 @@ STYLE = ['s-', 'o-', '^-', 's--', 'o--', '^--', 's:', 'o:', '^:', 's-.']
 COLORS = sns.color_palette('colorblind')
 
 
-def get_year_ticks(start: int = 0) -> Tuple[range, List[int]]:
+def get_year_ticks(start: int = 0) -> tuple[range, list[int]]:
     return range(start, len(TIMESTAMPS), 4), sorted({date.year for date in TIMESTAMPS})
 
 
-def _latexify(fig_width: Optional[float] = None,
-              fig_height: Optional[float] = None,
+def _latexify(fig_width: float | None = None,
+              fig_height: float | None = None,
               xtick_minor_visible: bool = False) -> None:
     """Set up matplotlib and seaborn's RC params for LaTeX plotting."""
     if fig_width is None:
@@ -74,8 +74,8 @@ def _latexify(fig_width: Optional[float] = None,
     matplotlib.rcParams.update(params)
 
 
-def latexify(fig_width: Optional[float] = None,
-             fig_height: Optional[float] = None,
+def latexify(fig_width: float | None = None,
+             fig_height: float | None = None,
              xtick_minor_visible: bool = False) -> Callable:
     def latexify_decorator(func):
         @functools.wraps(func)

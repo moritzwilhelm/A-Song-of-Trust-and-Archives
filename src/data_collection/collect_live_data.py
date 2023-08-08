@@ -1,7 +1,7 @@
 from datetime import date as date_type
 from multiprocessing import Pool
 from pathlib import Path
-from typing import NamedTuple, List, Set
+from typing import NamedTuple
 
 from configs.crawling import NUMBER_URLS, TODAY
 from configs.database import get_database_cursor
@@ -20,7 +20,7 @@ class LiveJob(NamedTuple):
     url: str
 
 
-def worker(jobs: List[LiveJob], table_name=TABLE_NAME) -> None:
+def worker(jobs: list[LiveJob], table_name=TABLE_NAME) -> None:
     """Crawl all provided `urls` and store the responses in the database."""
     with get_database_cursor(autocommit=True) as cursor:
         for tranco_id, domain, url in jobs:
@@ -39,7 +39,7 @@ def worker(jobs: List[LiveJob], table_name=TABLE_NAME) -> None:
                 """, (tranco_id, domain, TODAY, url, error.to_json()))
 
 
-def reset_failed_crawls(table_name: str, date: date_type = TODAY.date()) -> Set[int]:
+def reset_failed_crawls(table_name: str, date: date_type = TODAY.date()) -> set[int]:
     """Delete all crawling results whose status code is 429 or NULL and return the affected tranco ids."""
     with get_database_cursor(autocommit=True) as cursor:
         cursor.execute(f"""
@@ -50,13 +50,13 @@ def reset_failed_crawls(table_name: str, date: date_type = TODAY.date()) -> Set[
         return {tid for tid, in cursor.fetchall()}
 
 
-def prepare_jobs(tranco_file: Path = get_absolute_tranco_file_path(), n: int = NUMBER_URLS) -> List[LiveJob]:
+def prepare_jobs(tranco_file: Path = get_absolute_tranco_file_path(), n: int = NUMBER_URLS) -> list[LiveJob]:
     """Build a list of LiveJob instances for the given Tranco file and maximum number of domains."""
     worked_jobs = reset_failed_crawls(TABLE_NAME)
     return [LiveJob(tid, domain, url) for tid, domain, url in get_tranco_data(tranco_file, n) if tid not in worked_jobs]
 
 
-def run_jobs(jobs: List[LiveJob]) -> None:
+def run_jobs(jobs: list[LiveJob]) -> None:
     """Execute the provided crawl jobs using multiprocessing."""
     with Pool(WORKERS) as pool:
         pool.map(worker, partition_jobs(jobs, WORKERS))
