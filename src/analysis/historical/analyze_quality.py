@@ -5,8 +5,7 @@ from typing import Callable
 
 from tqdm import tqdm
 
-from analysis.analysis_utils import Origin, parse_origin
-from analysis.header_utils import Headers, HeadersDecoder, normalize_headers, classify_headers
+from analysis.header_utils import Headers, HeadersDecoder, Origin, parse_origin, normalize_headers, classify_headers
 from configs.analysis import RELEVANT_HEADERS
 from configs.crawling import TIMESTAMPS
 from configs.utils import join_with_json_path, get_tranco_data

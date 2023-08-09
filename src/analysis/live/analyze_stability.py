@@ -5,8 +5,8 @@ from typing import Callable
 
 from tqdm import tqdm
 
-from analysis.analysis_utils import Origin, parse_origin, get_min_timestamp, get_max_timestamp
-from analysis.header_utils import Headers, normalize_headers, classify_headers
+from analysis.analysis_utils import get_min_timestamp, get_max_timestamp
+from analysis.header_utils import Headers, Origin, parse_origin, normalize_headers, classify_headers
 from analysis.live.stability_enums import Status
 from configs.analysis import RELEVANT_HEADERS, MEMENTO_HEADER
 from configs.database import get_database_cursor

@@ -48,6 +48,11 @@ def setup_metadata_table() -> None:
             """)
 
 
+def live_sources_filter(sources: set[str]) -> set[str]:
+    """Collect all sources."""
+    return sources
+
+
 def archive_sources_filter(sources: set[str]) -> set[str]:
     """Collect all original sources mirrored by the Internet Archive."""
     matched_sources = (re.match(INTERNET_ARCHIVE_SOURCE_REGEX, source) for source in sources)
@@ -101,7 +106,7 @@ def main():
 
     # Prepare and execute the analysis jobs
     jobs = [
-        *prepare_jobs(LIVE_TABLE_NAME, lambda sources: sources),
+        *prepare_jobs(LIVE_TABLE_NAME, live_sources_filter),
         *prepare_jobs(ARCHIVE_TABLE_NAME),
         *prepare_jobs(PROXIMITY_SETS_TABLE_NAME)
     ]

@@ -1,9 +1,10 @@
 import re
 from json import JSONEncoder, JSONDecoder
+from typing import NamedTuple
 
 from requests.structures import CaseInsensitiveDict
+from urllib3.util import parse_url
 
-from analysis.analysis_utils import Origin
 from analysis.security_enums import XFO, CspFA, CspXSS, CspTLS, HSTSAge, HSTSSub, HSTSPreload, RP, COOP, CORP, COEP, \
     max_enum
 
@@ -24,6 +25,21 @@ class HeadersDecoder(JSONDecoder):
 
     def __init__(self, *args, **kwargs):
         super().__init__(object_hook=Headers, *args, **kwargs)
+
+
+class Origin(NamedTuple):
+    protocol: str
+    host: str
+    port: str | None = None
+
+    def __str__(self):
+        return f"{self.protocol}://{self.host}" if self.port is None else f"{self.protocol}://{self.host}:{self.port}"
+
+
+def parse_origin(url: str) -> Origin:
+    """Extract the origin of a given URL."""
+    parsed_url = parse_url(url)
+    return Origin(parsed_url.scheme.lower(), parsed_url.host.lower(), parsed_url.port)
 
 
 def normalize_headers(headers: Headers, origin: Origin | None = None) -> Headers:
