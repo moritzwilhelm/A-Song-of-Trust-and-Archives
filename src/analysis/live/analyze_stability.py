@@ -5,7 +5,7 @@ from typing import Callable
 
 from tqdm import tqdm
 
-from analysis.analysis_utils import parse_origin, get_aggregated_timestamp, get_aggregated_timestamp_date
+from analysis.analysis_utils import Origin, parse_origin, get_min_timestamp, get_max_timestamp
 from analysis.header_utils import Headers, normalize_headers, classify_headers
 from analysis.live.stability_enums import Status
 from configs.analysis import RELEVANT_HEADERS, MEMENTO_HEADER
@@ -15,9 +15,9 @@ from data_collection.collect_live_data import TABLE_NAME as LIVE_TABLE_NAME
 
 
 def analyze_live_data(targets: list[tuple[int, str, str]],
-                      start: date_type = get_aggregated_timestamp_date(LIVE_TABLE_NAME, 'MIN'),
-                      end: date_type = get_aggregated_timestamp_date(LIVE_TABLE_NAME, 'MAX'),
-                      aggregation_function: Callable[[Headers, str | None], Headers] = normalize_headers) -> None:
+                      start: date_type = get_min_timestamp(LIVE_TABLE_NAME).date(),
+                      end: date_type = get_max_timestamp(LIVE_TABLE_NAME).date(),
+                      aggregation_function: Callable[[Headers, Origin | None], Headers] = normalize_headers) -> None:
     """Compute the stability of (crawled) live data from `start` date up to (inclusive) `end` date."""
     assert start <= end
 
@@ -54,8 +54,8 @@ ARCHIVE_TABLE_NAME = 'HISTORICAL_DATA_20230716_20230730'
 
 
 def analyze_archived_snapshots(targets: list[tuple[int, str, str]],
-                               start: datetime = get_aggregated_timestamp(ARCHIVE_TABLE_NAME, 'MIN'),
-                               end: datetime = get_aggregated_timestamp(ARCHIVE_TABLE_NAME, 'MAX'),
+                               start: datetime = get_min_timestamp(ARCHIVE_TABLE_NAME),
+                               end: datetime = get_max_timestamp(ARCHIVE_TABLE_NAME),
                                n: int = 14) -> None:
     """Compute the stability of archived snapshots from `start` date up to (inclusive) `end` date."""
     assert start <= end
@@ -101,7 +101,7 @@ def analyze_archived_snapshots(targets: list[tuple[int, str, str]],
                 result[str(requested_date)][tid][str(date)] = status
                 previous_status = status
 
-    with open(join_with_json_path(f"STABILITY-{ARCHIVE_TABLE_NAME}-snapshots-{start.date()}.json"), 'w') as file:
+    with open(join_with_json_path(f"STABILITY-{ARCHIVE_TABLE_NAME}-snapshots.json"), 'w') as file:
         json.dump(result, file, indent=2, sort_keys=True)
 
 

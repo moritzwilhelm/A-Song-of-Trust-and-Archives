@@ -5,7 +5,7 @@ from typing import Callable
 
 from tqdm import tqdm
 
-from analysis.analysis_utils import parse_origin
+from analysis.analysis_utils import Origin, parse_origin
 from analysis.header_utils import Headers, HeadersDecoder, normalize_headers, classify_headers
 from configs.analysis import RELEVANT_HEADERS
 from configs.crawling import TIMESTAMPS
@@ -14,7 +14,7 @@ from configs.utils import join_with_json_path, get_tranco_data
 
 def analyze_differences(urls: list[tuple[int, str, str]],
                         proximity_sets_path: Path,
-                        aggregation_function: Callable[[Headers, str | None], Headers] = normalize_headers) -> None:
+                        aggregation_function: Callable[[Headers, Origin | None], Headers] = normalize_headers) -> None:
     """Compute the stability of (crawled) live data from `start` date up to (inclusive) `end` date."""
     with open(proximity_sets_path) as file:
         proximity_sets = json.load(file, cls=HeadersDecoder)

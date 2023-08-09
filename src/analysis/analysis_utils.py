@@ -1,41 +1,39 @@
-from typing import Any
+from datetime import datetime
+from typing import NamedTuple
 
-import pandas as pd
 from urllib3.util import parse_url
 
 from analysis.header_utils import Headers
 from configs.analysis import RELEVANT_HEADERS, INTERNET_ARCHIVE_HEADER_PREFIX, MEMENTO_HEADER
-from configs.database import get_database_cursor, get_database_connection
+from configs.database import get_database_cursor
 
 
-def sql_to_dataframe(query: str, query_args: tuple = ()) -> pd.DataFrame:
-    """Read SQL query into a Pandas DataFrame."""
-    with get_database_cursor() as cursor:
-        query = cursor.mogrify(query, query_args)
-    return pd.read_sql(query.decode(), con=get_database_connection())
+class Origin(NamedTuple):
+    protocol: str
+    host: str
+    port: str | None = None
+
+    def __str__(self):
+        return f"{self.protocol}://{self.host}" if self.port is None else f"{self.protocol}://{self.host}:{self.port}"
 
 
-def parse_origin(url: str) -> str:
+def parse_origin(url: str) -> Origin:
     """Extract the origin of a given URL."""
     parsed_url = parse_url(url)
-    origin = f"{parsed_url.scheme}://{parsed_url.host}"
-    if parsed_url.port is not None:
-        origin += f":{parsed_url.port}"
-    return origin
+    return Origin(parsed_url.scheme.lower(), parsed_url.host.lower(), parsed_url.port)
 
 
-# TODO remove SQLi
-def get_aggregated_timestamp(table_name: str, aggregation_function: str) -> Any:
-    """Apply the `aggregation_function` on all timestamps in `table_name` and return the resulting value."""
+def get_min_timestamp(table_name: str) -> datetime:
+    """Query the database for the `minimum timestamp` in `table_name`."""
     with get_database_cursor() as cursor:
-        cursor.execute(f"SELECT {aggregation_function}(timestamp) FROM {table_name}")
+        cursor.execute(f"SELECT MIN(timestamp) FROM {table_name}")
         return cursor.fetchone()[0]
 
 
-def get_aggregated_timestamp_date(table_name: str, aggregation_function: str) -> Any:
-    """Apply the `aggregation_function` on all timestamp::dates in `table_name` and return the resulting value."""
+def get_max_timestamp(table_name: str) -> datetime:
+    """Query the database for the `maximum timestamp` in `table_name`."""
     with get_database_cursor() as cursor:
-        cursor.execute(f"SELECT {aggregation_function}(timestamp::date) FROM {table_name}")
+        cursor.execute(f"SELECT MAX(timestamp) FROM {table_name}")
         return cursor.fetchone()[0]
 
 

@@ -3,6 +3,7 @@ from json import JSONEncoder, JSONDecoder
 
 from requests.structures import CaseInsensitiveDict
 
+from analysis.analysis_utils import Origin
 from analysis.security_enums import XFO, CspFA, CspXSS, CspTLS, HSTSAge, HSTSSub, HSTSPreload, RP, COOP, CORP, COEP, \
     max_enum
 
@@ -25,7 +26,7 @@ class HeadersDecoder(JSONDecoder):
         super().__init__(object_hook=Headers, *args, **kwargs)
 
 
-def normalize_headers(headers: Headers, origin: str | None = None) -> Headers:
+def normalize_headers(headers: Headers, origin: Origin | None = None) -> Headers:
     return Headers({
         'X-Frame-Options': normalize_xfo(
             headers['X-Frame-Options']) if 'X-Frame-Options' in headers else '<MISSING>',
@@ -46,7 +47,7 @@ def normalize_headers(headers: Headers, origin: str | None = None) -> Headers:
     })
 
 
-def classify_headers(headers: Headers, origin: str | None = None) -> Headers:
+def classify_headers(headers: Headers, origin: Origin | None = None) -> Headers:
     return Headers({
         'X-Frame-Options': classify_xfo(headers.get('X-Frame-Options', '')),
         'Content-Security-Policy': classify_csp(headers.get('Content-Security-Policy', ''), origin),
@@ -63,28 +64,27 @@ def classify_headers(headers: Headers, origin: str | None = None) -> Headers:
 # X-Frame-Options
 
 def normalize_xfo(value: str) -> str:
-    tokens = [token.strip() for token in value.lower().split(',')]
-    tokens.sort()
+    tokens = sorted(token.strip() for token in value.lower().split(','))
     return ','.join(tokens)
 
 
-# ASSUMPTION: modern browsers do not support ALLOW-FROM => only SAMEORIGIN and DENY are considered
+# modern browsers do not support ALLOW-FROM => only SAMEORIGIN and DENY are considered
 def classify_xfo(value: str) -> XFO:
-    value = normalize_xfo(value)
-    if value == 'sameorigin':
-        return XFO.SELF
-    if value == 'deny':
-        return XFO.NONE
-    else:
-        return XFO.UNSAFE
+    match normalize_xfo(value):
+        case 'deny':
+            return XFO.DENY
+        case 'sameorigin':
+            return XFO.SAMEORIGIN
+        case _:
+            return XFO.UNSAFE
 
 
 # ----------------------------------------------------------------------------
 # Content-Security-Policy
 
 def normalize_csp(value: str) -> str:
-    value = re.sub(r"'nonce-[^']*'", "'nonce-VALUE'", value, flags=re.IGNORECASE)
-    value = re.sub(r"'sha(256|384|512)-[^']*'", r"'sha\1-VALUE'", value, flags=re.IGNORECASE)
+    value = re.sub(r"'nonce-[A-Za-z0-9+/\-_]+={0,2}'", "'nonce-VALUE'", value, flags=re.IGNORECASE)
+    value = re.sub(r"'sha(256|384|512)-[A-Za-z0-9+/\-_]+={0,2}'", r"'sha\1-VALUE'", value, flags=re.IGNORECASE)
     value = re.sub(r"report-(uri|to)[^;,]*", r"report-\1 REPORT_URI", value, flags=re.IGNORECASE)
 
     normalized_policies = []
@@ -92,7 +92,7 @@ def normalize_csp(value: str) -> str:
         normalized_policy = []
 
         for directive in policy.strip().split(';'):
-            directive_name, *tokens = [token.strip() for token in directive.strip().split(' ')]
+            directive_name, *tokens = [token.strip() for token in directive.strip().split()]
             if directive_name == '':
                 continue
             normalized_policy.append(' '.join([directive_name, *sorted(tokens)]))
@@ -104,7 +104,7 @@ def normalize_csp(value: str) -> str:
     return ','.join(normalized_policies)
 
 
-class CSP(dict):
+class CSP(CaseInsensitiveDict):
     def add_directive(self, name: str, values: set[str]) -> bool:
         if name in self:
             return False
@@ -118,63 +118,64 @@ def parse_csp(value: str) -> list[CSP]:
     for policy in value.strip().split(','):
         csp = CSP()
         for directive in policy.strip().split(';'):
-            directive_name, *tokens = [token.strip() for token in directive.strip().split(' ')]
+            directive_name, *tokens = [token.strip() for token in directive.strip().split()]
             if directive_name == '':
                 continue
-            csp.add_directive(directive_name.lower(), {*tokens})
+            csp.add_directive(directive_name, {*tokens})
         policies.append(csp)
     return policies
 
 
-def classify_framing_control(origin: str, directive: set[str]) -> CspFA:
-    if directive == {"'none'"} or len(directive) == 0:
+def classify_framing_control(directive: set[str], origin: Origin) -> CspFA:
+    if len(directive) == 0 or directive == {"'none'"}:
         return CspFA.NONE
-    secure_origin = origin.replace('http://', 'https://')
-    domain = re.sub(r"http(s)://", '', origin, flags=re.IGNORECASE)
-    self_expressions = {'self', origin, origin + '/', secure_origin, secure_origin + '/', domain, domain + '/'}
-    if len(directive) > 0 and all(source in self_expressions for source in directive):
+
+    secure_origin = f"https://{origin.host}" if origin.port is None else f"https://{origin.host}:{origin.port}"
+    domain = origin.host if origin.port is None else f"{origin.host}:{origin.port}"
+    self_expressions = {"'self'", origin, f"{origin}/", secure_origin, f"{secure_origin}/", domain, f"{domain}/"}
+    if all(source in self_expressions for source in directive):
         return CspFA.SELF
+
     unsafe_expressions = {'*', 'http:', 'http://', 'http://*', 'https:', 'https://', 'https://*'}
     if any(source in unsafe_expressions for source in directive):
         return CspFA.UNSAFE
+
     return CspFA.CONSTRAINED
 
 
 def is_unsafe_inline_active(directive: set[str]) -> bool:
-    allow_all_inline = False
-    for source in directive:
-        r = r"^('nonce-[A-Za-z0-9+/\-_]+={0,2}'|'sha(256|384|512)-[A-Za-z0-9+/\-_]+={0,2}'|'strict-dynamic')$"
-        if re.search(r, source, flags=re.IGNORECASE):
-            return False
-        if re.match(r"^'unsafe-inline'$", source, flags=re.IGNORECASE):
-            allow_all_inline = True
-    return allow_all_inline
+    secure_expressions = {"'nonce-VALUE'", "'sha256-VALUE'", "'sha384-VALUE'", "'sha512-VALUE'", "'strict-dynamic'"}
+    return "'unsafe-inline'" in directive and not directive & secure_expressions
 
 
 def classify_xss_mitigation(csp: CSP) -> CspXSS:
-    unsafe_expressions = {'*', 'http:', 'http://', 'http://*', 'https:', 'https://', 'https://*', 'data:'}
-    directive = csp['script-src'] if "script-src" in csp else csp.get('default-src', None)
+    directive = csp.get('script-src', csp.get('default-src', None))
     if directive is None or is_unsafe_inline_active(directive):
         return CspXSS.UNSAFE
-    if "'strict-dynamic'" not in directive and directive & unsafe_expressions:
+
+    unsafe_expressions = {'*', 'http:', 'http://', 'http://*', 'https:', 'https://', 'https://*', 'data:'}
+    if directive & unsafe_expressions and "'strict-dynamic'" not in directive:
         return CspXSS.UNSAFE
+
     return CspXSS.SAFE
 
 
-def classify_policy(policy: CSP, origin: str) -> dict[str, CspFA | CspXSS | CspTLS]:
+def classify_policy(policy: CSP, origin: Origin) -> dict[str, CspFA | CspXSS | CspTLS]:
     res = {'FA': CspFA.UNSAFE, 'XSS': CspXSS.UNSAFE, 'TLS': CspTLS.UNSAFE}
     if 'frame-ancestors' in policy:
-        res['FA'] = classify_framing_control(origin, policy['frame-ancestors'])
+        res['FA'] = classify_framing_control(policy['frame-ancestors'], origin)
     if 'script-src' in policy or 'default-src' in policy:
         res['XSS'] = classify_xss_mitigation(policy)
-    if 'upgrade-insecure-requests' in policy or 'block-all-mixed-content' in policy:
-        res['TLS'] = CspTLS.ENABLED
+    if 'block-all-mixed-content' in policy:
+        res['TLS'] = CspTLS.BLOCK_ALL_MIXED_CONTENT
+    if 'upgrade-insecure-requests' in policy:
+        res['TLS'] = CspTLS.UPGRADE_INSECURE_REQUESTS
     return res
 
 
-def classify_csp(value: str, origin: str) -> tuple[CspFA, CspXSS, CspTLS]:
+def classify_csp(value: str, origin: Origin) -> tuple[CspFA, CspXSS, CspTLS]:
     res = {'FA': CspFA.UNSAFE, 'XSS': CspXSS.UNSAFE, 'TLS': CspTLS.UNSAFE}
-    for policy in parse_csp(value):
+    for policy in parse_csp(normalize_csp(value)):
         for use_case, classified_value in classify_policy(policy, origin).items():
             res[use_case] = max_enum(res[use_case], classified_value)
     return res['FA'], res['XSS'], res['TLS']
@@ -183,19 +184,18 @@ def classify_csp(value: str, origin: str) -> tuple[CspFA, CspXSS, CspTLS]:
 # ----------------------------------------------------------------------------
 # Strict-Transport-Security
 
-# according to RFC 6797 only the first HSTS header is considered
 def normalize_hsts(value: str) -> str:
+    # according to RFC 6797 only the first HSTS header is considered
     value = value.lower().split(',')[0]
-    tokens = [token.strip() for token in value.split(';')]
-    tokens.sort()
+    tokens = sorted(token.strip() for token in value.split(';'))
     return ';'.join(tokens)
 
 
-def classify_hsts_age(max_age: int) -> HSTSAge:
+def classify_hsts_age(max_age: int | None) -> HSTSAge:
     if max_age is None:
-        return HSTSAge.UNSAFE
+        return HSTSAge.ABSENT
     elif max_age <= 0:
-        return HSTSAge.DISABLE
+        return HSTSAge.DISABLED
     elif max_age < 24 * 60 * 60 * 365:
         return HSTSAge.LOW
     else:
@@ -203,59 +203,51 @@ def classify_hsts_age(max_age: int) -> HSTSAge:
 
 
 def classify_hsts(value: str) -> tuple[HSTSAge, HSTSSub, HSTSPreload]:
-    preload = False
-    include_sub_domains = False
     max_age = None
+    include_sub_domains = False
+    preload = False
     seen_directives = set()
 
     for token in normalize_hsts(value).split(';'):
         directive = token.split('=')[0]
         if directive in seen_directives:
             # all directives MUST appear only once (https://datatracker.ietf.org/doc/html/rfc6797#section-6.1)
-            return (HSTSAge.UNSAFE, HSTSSub.UNSAFE, HSTSPreload.ABSENT)
+            return HSTSAge.ABSENT, HSTSSub.ABSENT, HSTSPreload.ABSENT
 
-        if token == 'preload':
-            preload = True
-        elif token == 'includesubdomains':
-            include_sub_domains = True
-        elif directive == 'max-age':
-            try:
-                max_age = int(token.split('=')[1].strip('"'))
-            except (ValueError, IndexError):
-                return (HSTSAge.UNSAFE, HSTSSub.UNSAFE, HSTSPreload.ABSENT)
+        match directive:
+            case 'max-age':
+                if (max_age_match := re.match(r'max-age=("?)(\d+)\1$', token)) is None:
+                    return HSTSAge.ABSENT, HSTSSub.ABSENT, HSTSPreload.ABSENT
+                max_age = int(max_age_match.group(2))
+            case 'includesubdomains':
+                include_sub_domains = True
+            case 'preload':
+                preload = True
 
         seen_directives.add(directive)
 
-    if max_age is None:
-        # max-age directive is REQUIRED (https://datatracker.ietf.org/doc/html/rfc6797#section-6.1)
-        return (HSTSAge.UNSAFE, HSTSSub.UNSAFE, HSTSPreload.ABSENT)
-
-    classified_max_age = classify_hsts_age(max_age)
-
-    return (classified_max_age,
-            # includeSubDomains directive's presence is ignored when max-age is zero
-            HSTSSub(include_sub_domains and classified_max_age != HSTSAge.DISABLE),
-            HSTSPreload(preload and include_sub_domains and classified_max_age == HSTSAge.BIG))
+    return (classified_max_age := classify_hsts_age(max_age),
+            # includeSubDomains directive's presence is ignored when max-age is absent or zero
+            HSTSSub(include_sub_domains and classified_max_age not in (HSTSAge.ABSENT, HSTSAge.DISABLED)),
+            HSTSPreload(preload and include_sub_domains and classified_max_age is HSTSAge.BIG))
 
 
 # ----------------------------------------------------------------------------
 # Referrer-Policy
 
 def normalize_referrer_policy(value: str) -> str:
-    tokens = [token.strip() for token in value.lower().split(',')]
-    return ','.join(tokens)
+    return ','.join(token.strip() for token in value.lower().split(','))
 
 
 REFERRER_POLICY_VALUES = {
-    '',
+    'unsafe-url',
+    'same-origin',
     'no-referrer',
     'no-referrer-when-downgrade',
-    'same-origin',
     'origin',
-    'strict-origin',
     'origin-when-cross-origin',
-    'strict-origin-when-cross-origin',
-    'unsafe-url'
+    'strict-origin',
+    'strict-origin-when-cross-origin'
 }
 
 
@@ -266,15 +258,31 @@ def classify_referrer_policy(value: str) -> RP:
             # only consider the latest valid policy
             # https://w3c.github.io/webappsec-referrer-policy/#parse-referrer-policy-from-header
             policy = token
-    return RP(policy not in ('no-referrer-when-downgrade', 'unsafe-url'))
+
+    match policy:
+        case 'unsafe-url':
+            return RP.UNSAFE_URL
+        case 'same-origin':
+            return RP.SAME_ORIGIN
+        case 'no-referrer':
+            return RP.NO_REFERRER
+        case 'no-referrer-when-downgrade':
+            return RP.NO_REFERRER_WHEN_DOWNGRADE
+        case 'origin':
+            return RP.ORIGIN
+        case 'origin-when-cross-origin':
+            return RP.ORIGIN_WHEN_CROSS_ORIGIN
+        case 'strict-origin':
+            return RP.STRICT_ORIGIN
+        case 'strict-origin-when-cross-origin' | '':
+            return RP.STRICT_ORIGIN_WHEN_CROSS_ORIGIN
 
 
 # ----------------------------------------------------------------------------
 # Permissions-Policy
 
 def normalize_permissions_policy(value: str) -> str:
-    tokens = [token.strip() for token in value.lower().split(',')]
-    tokens.sort()
+    tokens = sorted(token.strip() for token in value.lower().split(','))
     return ','.join(tokens)
 
 
@@ -286,13 +294,18 @@ def classify_permissions_policy(value: str) -> str:
 # Cross-Origin-Opener-Policy
 
 def normalize_coop(value: str) -> str:
-    tokens = [token.strip() for token in value.split(';')]
-    return ';'.join(tokens)
+    return ';'.join(token.strip() for token in value.split(';'))
 
 
 def classify_coop(value: str) -> COOP:
     directive = normalize_coop(value).split(';')[0]
-    return COOP(directive in ('same-origin', 'same-origin-allow-popups'))
+    match directive:
+        case 'same-origin':
+            return COOP.SAME_ORIGIN
+        case 'same-origin-allow-popups':
+            return COOP.SAME_ORIGIN_ALLOW_POPUPS
+        case _:
+            return COOP.UNSAFE_NONE
 
 
 # ----------------------------------------------------------------------------
@@ -304,17 +317,30 @@ def normalize_corp(value: str) -> str:
 
 def classify_corp(value: str) -> CORP:
     directive = normalize_corp(value)
-    return CORP(directive in ('same-origin', 'same-site'))
+
+    match directive:
+        case 'same-origin':
+            return CORP.SAME_ORIGIN
+        case 'same-site':
+            return CORP.SAME_SITE
+        case _:
+            return CORP.CROSS_ORIGIN
 
 
 # ----------------------------------------------------------------------------
 # Cross-Origin-Embedder-Policy
 
 def normalize_coep(value: str) -> str:
-    tokens = [token.strip() for token in value.split(';')]
-    return ';'.join(tokens)
+    return ';'.join(token.strip() for token in value.split(';'))
 
 
 def classify_coep(value: str) -> COEP:
     directive = normalize_coop(value).split(';')[0]
-    return COEP(directive in ('require-corp', 'credentialless'))
+
+    match directive:
+        case 'credentialless':
+            return COEP.CREDENTIALLESS
+        case 'require-corp':
+            return COEP.REQUIRE_CORP
+        case _:
+            return COEP.UNSAFE_NONE

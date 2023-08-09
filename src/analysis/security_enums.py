@@ -11,8 +11,8 @@ def max_enum(first: E, second: E) -> E:
 
 class XFO(Enum):
     UNSAFE = 0
-    SELF = 1
-    NONE = 2
+    SAMEORIGIN = 1
+    DENY = 2
 
 
 class CspFA(Enum):
@@ -29,19 +29,20 @@ class CspXSS(Enum):
 
 class CspTLS(Enum):
     UNSAFE = 0
-    ENABLED = 1
+    BLOCK_ALL_MIXED_CONTENT = 1
+    UPGRADE_INSECURE_REQUESTS = 2
 
 
 class HSTSAge(Enum):
-    DISABLE = -1
-    UNSAFE = 0
+    DISABLED = -1
+    ABSENT = 0
     LOW = 1
     BIG = 2
 
 
 class HSTSSub(Enum):
-    UNSAFE = 0
-    SAFE = 1
+    ABSENT = 0
+    ACTIVE = 1
 
 
 class HSTSPreload(Enum):
@@ -50,20 +51,29 @@ class HSTSPreload(Enum):
 
 
 class RP(Enum):
-    UNSAFE = 0
-    SAFE = 1
+    UNSAFE_URL = 0
+    SAME_ORIGIN = 1
+    NO_REFERRER = 2
+    NO_REFERRER_WHEN_DOWNGRADE = 3
+    ORIGIN = 4
+    ORIGIN_WHEN_CROSS_ORIGIN = 5
+    STRICT_ORIGIN = 6
+    STRICT_ORIGIN_WHEN_CROSS_ORIGIN = 7
 
 
 class COOP(Enum):
-    UNSAFE = 0
-    SAFE = 1
+    UNSAFE_NONE = 0
+    SAME_ORIGIN = 1
+    SAME_ORIGIN_ALLOW_POPUPS = 2
 
 
 class CORP(Enum):
-    UNSAFE = 0
-    SAFE = 1
+    CROSS_ORIGIN = 0
+    SAME_SITE = 1
+    SAME_ORIGIN = 2
 
 
 class COEP(Enum):
-    UNSAFE = 0
-    SAFE = 1
+    UNSAFE_NONE = 0
+    REQUIRE_CORP = 1
+    CREDENTIALLESS = 2

@@ -8,7 +8,7 @@ from matplotlib.ticker import PercentFormatter
 from pandas import DataFrame
 from pytz import utc
 
-from analysis.analysis_utils import get_aggregated_timestamp, get_aggregated_timestamp_date
+from analysis.analysis_utils import get_min_timestamp, get_max_timestamp
 from analysis.live.analyze_stability import ARCHIVE_TABLE_NAME
 from analysis.live.stability_enums import Status
 from configs.analysis import RELEVANT_HEADERS
@@ -19,8 +19,8 @@ from plotting.plotting_utils import HEADER_ABBREVIATION, STYLE, COLORS, latexify
 
 @latexify(xtick_minor_visible=True)
 def plot_live(input_path: Path,
-              start: date_type = get_aggregated_timestamp_date(LIVE_TABLE_NAME, 'MIN'),
-              end: date_type = get_aggregated_timestamp_date(LIVE_TABLE_NAME, 'MIN') + timedelta(30)) -> None:
+              start: date_type = get_min_timestamp(LIVE_TABLE_NAME).date(),
+              end: date_type = get_max_timestamp(LIVE_TABLE_NAME).date() + timedelta(30)) -> None:
     """Plot the analyzed live data in `input_path` between `start` and `end` and save the figure at `output_path`."""
     assert start <= end
 
@@ -52,8 +52,8 @@ def plot_live(input_path: Path,
 
 @latexify()
 def plot_snapshot_stability(input_path: Path,
-                            start: datetime = get_aggregated_timestamp(ARCHIVE_TABLE_NAME, 'MIN'),
-                            end: datetime = get_aggregated_timestamp(ARCHIVE_TABLE_NAME, 'MAX'),
+                            start: datetime = get_min_timestamp(ARCHIVE_TABLE_NAME),
+                            end: datetime = get_max_timestamp(ARCHIVE_TABLE_NAME),
                             n: int = 15) -> None:
     """Plot the analyzed archive data in `input_path` between `start` and `end` and save the figure at `output_path`."""
     assert start <= end
@@ -124,9 +124,8 @@ def main():
     )
 
     # ARCHIVE DATA
-    start = get_aggregated_timestamp(ARCHIVE_TABLE_NAME, 'MIN')
     plot_snapshot_stability(
-        join_with_json_path(f"STABILITY-{ARCHIVE_TABLE_NAME}-snapshots-{start.date()}.json")
+        join_with_json_path(f"STABILITY-{ARCHIVE_TABLE_NAME}-snapshots.json")
     )
 
     plot_snapshot_stability(
