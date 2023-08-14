@@ -11,10 +11,10 @@ from configs.crawling import TIMESTAMPS
 from configs.utils import join_with_json_path, get_tranco_data
 
 
-def analyze_differences(urls: list[tuple[int, str, str]],
-                        proximity_sets_path: Path,
-                        aggregation_function: Callable[[Headers, Origin | None], Headers] = normalize_headers) -> None:
-    """Compute the stability of (crawled) live data from `start` date up to (inclusive) `end` date."""
+def analyze_quality(urls: list[tuple[int, str, str]],
+                    proximity_sets_path: Path,
+                    aggregation_function: Callable[[Headers, Origin | None], Headers] = normalize_headers) -> None:
+    """Compute the consistency of header values within each proximity set."""
     with open(proximity_sets_path) as file:
         proximity_sets = json.load(file, cls=HeadersDecoder)
 
@@ -23,7 +23,7 @@ def analyze_differences(urls: list[tuple[int, str, str]],
         for timestamp in TIMESTAMPS:
             seen_values = defaultdict(set)
             deploys = defaultdict(lambda: False)
-            for headers, end_url in proximity_sets[str(tid)][str(timestamp)]:
+            for headers, end_url, *_ in proximity_sets[str(tid)][str(timestamp)]:
                 aggregated_headers = aggregation_function(headers, parse_origin(end_url))
                 for header in RELEVANT_HEADERS:
                     seen_values[header].add(aggregated_headers[header])
@@ -43,9 +43,9 @@ def analyze_differences(urls: list[tuple[int, str, str]],
 
 def main():
     for aggregation_function in normalize_headers, classify_headers:
-        analyze_differences(get_tranco_data(),
-                            join_with_json_path(f"PROXIMITY-SETS-{10}.json"),
-                            aggregation_function=aggregation_function)
+        analyze_quality(get_tranco_data(),
+                        join_with_json_path(f"PROXIMITY-SETS-{10}.json"),
+                        aggregation_function=aggregation_function)
 
 
 if __name__ == '__main__':

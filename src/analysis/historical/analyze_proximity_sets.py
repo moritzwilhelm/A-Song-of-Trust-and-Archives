@@ -7,6 +7,7 @@ from pytz import utc
 from tqdm import tqdm
 
 from analysis.analysis_utils import parse_archived_headers
+from analysis.extract_script_metadata import METADATA_TABLE_NAME
 from analysis.header_utils import Headers, HeadersEncoder, HeadersDecoder
 from configs.analysis import INTERNET_ARCHIVE_END_URL_REGEX, MEMENTO_HEADER
 from configs.crawling import INTERNET_ARCHIVE_TIMESTAMP_FORMAT, TIMESTAMPS
@@ -37,15 +38,16 @@ def build_proximity_sets(targets: list[tuple[int, str, str]], n: int = 10) -> No
     proximity_set_members = get_proximity_set_members(n)
     with get_database_cursor() as cursor:
         ps_members_data = {}
-        for timestamp in TIMESTAMPS:
+        for timestamp in tqdm(TIMESTAMPS):
             cursor.execute(f"""
-                SELECT tranco_id, timestamp, (headers->>%s)::TIMESTAMPTZ, headers, substring(end_url FROM %s)
-                FROM {PROXIMITY_SETS_TABLE_NAME}
+                SELECT tranco_id, timestamp, (headers->>%s)::TIMESTAMPTZ,
+                       headers, substring(end_url FROM %s), relevant_sources, hosts, sites
+                FROM {PROXIMITY_SETS_TABLE_NAME} JOIN {METADATA_TABLE_NAME} USING (content_hash)
                 WHERE (headers->>%s)::TIMESTAMPTZ BETWEEN %s AND %s
             """, (MEMENTO_HEADER.lower(), INTERNET_ARCHIVE_END_URL_REGEX, MEMENTO_HEADER.lower(),
                   timestamp - timedelta(days=3, hours=12), timestamp + timedelta(days=3, hours=12)))
-            for tid, request_timestamp, archived_timestamp, headers, end_url in cursor.fetchall():
-                ps_members_data[tid, request_timestamp] = (archived_timestamp, parse_archived_headers(headers), end_url)
+            for tid, request_timestamp, archived_timestamp, headers, *data in cursor.fetchall():
+                ps_members_data[tid, request_timestamp] = (archived_timestamp, parse_archived_headers(headers), *data)
 
     def get_proximity_set(tranco_id: int, ts_date: date_type) -> list[tuple[Headers, str]]:
         """Build the proximity set for (tranco_id, ts_date) and drop duplicate members."""
@@ -74,7 +76,7 @@ def analyze_proximity_sets(proximity_sets_filepath: Path):
         data = json.load(file, cls=HeadersDecoder)
 
     result = defaultdict(lambda: defaultdict(list))
-    for tid in data:
+    for tid in tqdm(data):
         for timestamp, proximity_set in data[tid].items():
             result[timestamp]['Set size'].append(len(proximity_set))
 
