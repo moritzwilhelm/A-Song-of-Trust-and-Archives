@@ -14,7 +14,7 @@ def plot_set_size(file_path: Path) -> None:
 
     data['Set size'] = data['Set size'].apply(lambda row: [set_size for set_size in row if set_size > 1])
 
-    axes = data.explode('Set size').reset_index().pivot(columns='index', values='Set size').plot.box(
+    axes = data.explode('Set size').reset_index().pivot(columns='index', values='Set size').astype(float).plot.box(
         grid=True,
         boxprops=dict(linestyle='-', linewidth=1, color=COLORS[0]),
         whiskerprops=dict(linestyle='dotted', linewidth=1, color=COLORS[1]),

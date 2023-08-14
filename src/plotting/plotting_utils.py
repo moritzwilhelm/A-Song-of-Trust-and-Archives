@@ -50,10 +50,9 @@ def _latexify(fig_width: float | None = None,
     legendsize = 8
 
     params = {
-        'text.latex.preamble': ['\\usepackage{gensymb}', '\\usepackage{subscript}'],
+        'text.usetex': True,
         'font.family': 'serif',
         'font.size': fontsize,
-        'text.usetex': True,
         'figure.figsize': [fig_width, fig_height],
         'axes.labelsize': fontsize,
         'axes.titlesize': fontsize,

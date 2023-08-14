@@ -20,7 +20,7 @@ from plotting.plotting_utils import HEADER_ABBREVIATION, STYLE, COLORS, latexify
 @latexify(xtick_minor_visible=True)
 def plot_live(input_path: Path,
               start: date_type = get_min_timestamp(LIVE_TABLE_NAME).date(),
-              end: date_type = get_max_timestamp(LIVE_TABLE_NAME).date() + timedelta(30)) -> None:
+              end: date_type = get_min_timestamp(LIVE_TABLE_NAME).date() + timedelta(30)) -> None:
     """Plot the analyzed live data in `input_path` between `start` and `end` and save the figure at `output_path`."""
     assert start <= end
 
@@ -93,7 +93,7 @@ def plot_snapshot_stability(input_path: Path,
                 data.at[idx, column].append(row[column])
 
     for column in data.columns:
-        axes = data.explode(column).reset_index().pivot(columns='index', values=column).plot.box(
+        axes = data.explode(column).reset_index().pivot(columns='index', values=column).astype(float).plot.box(
             grid=True,
             boxprops=dict(linestyle='-', linewidth=1, color=COLORS[0]),
             whiskerprops=dict(linestyle='dotted', linewidth=1, color=COLORS[1]),
