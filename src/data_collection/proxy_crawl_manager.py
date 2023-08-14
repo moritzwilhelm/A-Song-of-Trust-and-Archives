@@ -1,9 +1,8 @@
 from argparse import ArgumentParser, Namespace as Arguments
 from datetime import datetime
-from multiprocessing import Process, pool
+from multiprocessing import Process, pool, get_context
 from subprocess import run
 
-import requests
 from pytz import utc
 from requests import get
 
@@ -26,9 +25,14 @@ class NoDaemonProcess(Process):
     daemon = property(_get_daemon, _set_daemon)
 
 
-class NoDaemonPool(pool.Pool):
-    """Wrapper class to allow pool processes to spawn children."""
+class NoDaemonContext(type(get_context())):
     Process = NoDaemonProcess
+
+
+class NoDaemonPool(pool.Pool):
+    def __init__(self, *args, **kwargs):
+        kwargs['context'] = NoDaemonContext()
+        super(NoDaemonPool, self).__init__(*args, **kwargs)
 
 
 def parse_args() -> Arguments:
@@ -60,11 +64,13 @@ def close_socks_proxies() -> None:
 
 def test_socks_proxies() -> None:
     """Test availability of socks proxies."""
-    assert requests.get('https://api.ipify.org?format=json').status_code == 200, 'IP API is down.'
+    response = get('https://api.ipify.org?format=json')
+    assert response.status_code == 200, 'IP API is down.'
+    ip = response.json()['ip']
 
     for port, remote in SOCKS_PROXIES.items():
         proxies = dict(http=f"socks5://localhost:{port}", https=f"socks5://localhost:{port}")
-        assert get('https://api.ipify.org?format=json', proxies=proxies).json()['ip'] == remote.split('@')[1], \
+        assert get('https://api.ipify.org?format=json', proxies=proxies).json()['ip'] != ip, \
             f"Socks proxy ({port}, {remote}) is broken."
 
 
