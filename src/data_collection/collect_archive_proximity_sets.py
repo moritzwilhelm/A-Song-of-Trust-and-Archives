@@ -86,6 +86,7 @@ def find_candidates(url: str,
         return abs(timestamp - datetime.strptime(value, INTERNET_ARCHIVE_TIMESTAMP_FORMAT).replace(tzinfo=utc))
 
     for from_timestamp, to_timestamp in proximity_set_windows(timestamp):
+        sleep(1)
         response = crawl(
             CDX_REQUEST.format(
                 url=url,
@@ -116,7 +117,6 @@ def cdx_worker(jobs: list[CdxJob]) -> None:
     session = requests.Session()
     with get_database_cursor(autocommit=True) as cursor:
         for timestamp, tranco_id, domain, url, proxies in jobs:
-            sleep(0.2)
             try:
                 candidates = find_candidates(url, timestamp, 10, proxies, session)
                 cursor.execute(f"""

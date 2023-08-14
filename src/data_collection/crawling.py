@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from datetime import datetime, date as date_type
 from hashlib import sha256
 from itertools import cycle
-from time import time_ns
+from time import time_ns, sleep
 from types import FrameType
 
 from psycopg2.extras import Json
@@ -149,5 +149,10 @@ def crawl(url: str,
 
     # store content on disk
     content_hash = store_on_disk(response.content)
+
+    # mitigate rate-limiting
+    if response.status_code == 429:
+        print("WARNING: RATE-LIMITING - 429")
+        sleep(10)
 
     return CrawlingResponse(response, content_hash, response_time)
