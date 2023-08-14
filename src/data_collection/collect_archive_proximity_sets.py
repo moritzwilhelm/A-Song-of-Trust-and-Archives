@@ -1,10 +1,11 @@
 from collections import defaultdict
 from datetime import datetime, timedelta
+from heapq import nsmallest
 from itertools import chain
 from multiprocessing import Pool
 from pathlib import Path
 from time import sleep
-from typing import NamedTuple
+from typing import NamedTuple, Generator
 
 import requests
 from psycopg2.extras import Json
@@ -64,34 +65,50 @@ def reset_failed_cdx_crawls() -> dict[datetime, list[int]]:
         return defaultdict(list, cursor.fetchall())
 
 
+def proximity_set_windows(timestamp: datetime) -> Generator[tuple[datetime, datetime], None, None]:
+    """Yield all 1-week proximity set windows within the 12-week snapshot timeframe."""
+    yield timestamp - timedelta(days=3, hours=12), timestamp + timedelta(days=3, hours=12)
+
+    for i in range(1, 39):
+        yield timestamp - timedelta(days=3 + i, hours=12), timestamp + timedelta(days=3 - i, hours=12)
+        yield timestamp - timedelta(days=3 - i, hours=12), timestamp + timedelta(days=3 + i, hours=12)
+
+
 def find_candidates(url: str,
                     timestamp: datetime,
                     n: int,
                     proxies: dict[str, str] | None = None,
                     session: Session | None = None) -> list[str]:
     """Collect the `n` best candidates for the proximity set of (`url`, `timestamp`)."""
-    response = crawl(
-        CDX_REQUEST.format(
-            url=url,
-            from_timestamp=(timestamp - timedelta(days=3, hours=12)).strftime(INTERNET_ARCHIVE_TIMESTAMP_FORMAT),
-            to_timestamp=(timestamp + timedelta(days=3, hours=12)).strftime(INTERNET_ARCHIVE_TIMESTAMP_FORMAT)
-        ),
-        proxies=proxies,
-        session=session
-    )
+    candidates = []
 
     def timestamp_distance(value: str) -> timedelta:
         return abs(timestamp - datetime.strptime(value, INTERNET_ARCHIVE_TIMESTAMP_FORMAT).replace(tzinfo=utc))
 
-    try:
-        timestamps = response.json()
-    except JSONDecodeError as error:
-        raise CrawlingException(url) from error
+    for from_timestamp, to_timestamp in proximity_set_windows(timestamp):
+        response = crawl(
+            CDX_REQUEST.format(
+                url=url,
+                from_timestamp=from_timestamp.strftime(INTERNET_ARCHIVE_TIMESTAMP_FORMAT),
+                to_timestamp=to_timestamp.strftime(INTERNET_ARCHIVE_TIMESTAMP_FORMAT)
+            ),
+            proxies=proxies,
+            session=session
+        )
 
-    if timestamps:
-        timestamps = sorted(set(chain.from_iterable(timestamps[1:])), key=timestamp_distance)
+        try:
+            timestamps = response.json()
+        except JSONDecodeError as error:
+            raise CrawlingException(url) from error
 
-    return timestamps[:n]
+        if timestamps:
+            candidates = max(candidates,
+                             nsmallest(n, set(chain.from_iterable(timestamps[1:])), key=timestamp_distance),
+                             key=len)
+            if len(candidates) == n:
+                break
+
+    return candidates
 
 
 def cdx_worker(jobs: list[CdxJob]) -> None:
@@ -101,7 +118,7 @@ def cdx_worker(jobs: list[CdxJob]) -> None:
         for timestamp, tranco_id, domain, url, proxies in jobs:
             sleep(0.2)
             try:
-                candidates = find_candidates(url, timestamp, 25, proxies, session)
+                candidates = find_candidates(url, timestamp, 10, proxies, session)
                 cursor.execute(f"""
                     INSERT INTO {CANDIDATES_TABLE_NAME} (tranco_id, domain, url, timestamp, candidates)
                     VALUES (%s, %s, %s, %s, %s)
