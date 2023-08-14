@@ -23,8 +23,8 @@ def compute_tolerance_window(timestamp: datetime, weeks: int | None = None) -> t
 def compute_hits(table_name: str, tolerance: int | None = None):
     """Compute the number of archive hits that match the given `tolerance` in weeks."""
     num_hits = {}
-    for timestamp in tqdm(TIMESTAMPS):
-        with get_database_cursor() as cursor:
+    with get_database_cursor() as cursor:
+        for timestamp in tqdm(TIMESTAMPS):
             cursor.execute(f"""
                 SELECT count(DISTINCT tranco_id)
                 FROM {table_name}
@@ -40,8 +40,8 @@ def compute_hits(table_name: str, tolerance: int | None = None):
 def compute_drifts(table_name: str, tolerance: int | None = None):
     """Collect the drifts between archived date and requested date, only considering hits that match the `tolerance`."""
     drifts = defaultdict(list)
-    for timestamp in tqdm(TIMESTAMPS):
-        with get_database_cursor() as cursor:
+    with get_database_cursor() as cursor:
+        for timestamp in tqdm(TIMESTAMPS):
             cursor.execute(f"""
                 SELECT (headers->>%s)::TIMESTAMPTZ
                 FROM {table_name}
@@ -59,8 +59,8 @@ def compute_drifts(table_name: str, tolerance: int | None = None):
 def compute_hits_per_bucket(tolerance: int | None = None):
     """Compute the number of archive hits per 100k bucket that match the given `tolerance` in weeks."""
     num_hits = defaultdict(dict)
-    for start, end in tqdm([(i, i + 99_999) for i in range(1, 1_000_000, 100_000)]):
-        with get_database_cursor() as cursor:
+    with get_database_cursor() as cursor:
+        for start, end in tqdm([(i, i + 99_999) for i in range(1, 1_000_000, 100_000)]):
             for timestamp in TIMESTAMPS:
                 cursor.execute(f"""
                     SELECT count(DISTINCT tranco_id)

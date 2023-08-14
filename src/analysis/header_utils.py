@@ -39,6 +39,8 @@ class Origin(NamedTuple):
 def parse_origin(url: str) -> Origin:
     """Extract the origin of a given URL."""
     parsed_url = parse_url(url)
+    if parsed_url.host is None:
+        parsed_url = parse_url(re.sub(r"^(https?):/(?!/)", r"\1://", url))
     return Origin(parsed_url.scheme.lower(), parsed_url.host.lower(), parsed_url.port)
 
 
@@ -108,7 +110,7 @@ def normalize_csp(value: str) -> str:
         normalized_policy = []
 
         for directive in policy.strip().split(';'):
-            directive_name, *tokens = [token.strip() for token in directive.strip().split()]
+            directive_name, *tokens = [token.strip() for token in directive.strip().split()] or ['']
             if directive_name == '':
                 continue
             normalized_policy.append(' '.join([directive_name, *sorted(tokens)]))
@@ -134,7 +136,7 @@ def parse_csp(value: str) -> list[CSP]:
     for policy in value.strip().split(','):
         csp = CSP()
         for directive in policy.strip().split(';'):
-            directive_name, *tokens = [token.strip() for token in directive.strip().split()]
+            directive_name, *tokens = [token.strip() for token in directive.strip().split()] or ['']
             if directive_name == '':
                 continue
             csp.add_directive(directive_name, {*tokens})

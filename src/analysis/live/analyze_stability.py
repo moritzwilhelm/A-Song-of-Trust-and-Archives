@@ -77,24 +77,27 @@ def analyze_archived_snapshots(targets: list[tuple[int, str, str]],
             previous_snapshot = None
             for date in date_range(requested_date.date(), requested_date.date() + timedelta(n)):
                 if (tid, date) not in archive_data:
-                    if previous_status in (Status.ADDED, Status.MODIFIED):
-                        status = Status.UNMODIFIED
-                    elif previous_status == Status.REMOVED:
-                        status = Status.MISSING
-                    else:
-                        status = previous_status
+                    match previous_status:
+                        case Status.ADDED | Status.MODIFIED:
+                            status = Status.UNMODIFIED
+                        case Status.REMOVED:
+                            status = Status.MISSING
+                        case _:
+                            status = previous_status
                 else:
                     end_url, memento_datetime, status_code = archive_data[tid, date]
                     if memento_datetime is None or abs(memento_datetime - requested_date) > timedelta(1):
-                        if previous_status in (Status.ADDED, Status.MODIFIED, Status.UNMODIFIED):
-                            status = Status.REMOVED
-                        else:
-                            status = Status.MISSING
+                        match previous_status:
+                            case Status.ADDED | Status.MODIFIED | Status.UNMODIFIED:
+                                status = Status.REMOVED
+                            case _:
+                                status = Status.MISSING
                     else:
-                        if previous_status in (Status.MISSING, Status.REMOVED):
-                            status = Status.ADDED
-                        else:
-                            status = Status.MODIFIED if previous_snapshot != end_url else Status.UNMODIFIED
+                        match previous_status:
+                            case Status.MISSING | Status.REMOVED:
+                                status = Status.ADDED
+                            case _:
+                                status = Status.MODIFIED if previous_snapshot != end_url else Status.UNMODIFIED
 
                         previous_snapshot = end_url
 

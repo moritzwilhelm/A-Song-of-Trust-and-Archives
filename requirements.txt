@@ -19,4 +19,4 @@ matplotlib~=3.7.2
 seaborn~=0.12.2
 
 # UTILITY
-tqdm==4.66.0
+tqdm==4.66.1

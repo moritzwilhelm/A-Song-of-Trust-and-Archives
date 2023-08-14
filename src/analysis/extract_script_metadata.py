@@ -71,7 +71,7 @@ def worker(jobs: list[AnalysisJob]) -> None:
 
             parsed_sources = {extract(source) for source in relevant_sources}
             hosts = {'.'.join(filter(None, source)) for source in parsed_sources}
-            sites = {'.'.join(filter(None, source[1:])) for source in parsed_sources}
+            sites = {source.registered_domain for source in parsed_sources}
 
             cursor.execute(f"""
                 INSERT INTO {METADATA_TABLE_NAME} (content_hash, sources, relevant_sources, hosts, sites)
