@@ -37,7 +37,7 @@ def get_tranco_data(tranco_file: Path = get_absolute_tranco_file_path(),
     with open(tranco_file) as file:
         for line in islice(file, n):
             tranco_id, domain = line.strip().split(',')
-            data.append((int(tranco_id), domain, f"{PREFIX}{domain}"))
+            data.append((int(tranco_id), domain, f"{PREFIX}{domain}/"))
     return data
 
 
