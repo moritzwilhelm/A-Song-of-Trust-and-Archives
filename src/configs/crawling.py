@@ -1,7 +1,9 @@
+import re
 from datetime import datetime
 
 from pytz import utc
 
+WAYBACK_MACHINE_API_PATH = 'https://web.archive.org/web/'
 INTERNET_ARCHIVE_URL = 'https://web.archive.org/web/{timestamp}/{url}'
 INTERNET_ARCHIVE_TIMESTAMP_FORMAT = '%Y%m%d%H%M%S'
 
@@ -18,6 +20,11 @@ TIMESTAMPS = tuple(
     for month in [1, 4, 7, 10]
     if (timestamp := datetime(year, month, 15, 12, tzinfo=utc)) <= FINAL_TIMESTAMP
 )
+
+WAYBACK_HEADER_REGEX = re.compile(b"<head>.*<!-- End Wayback Rewrite JS Include -->\n", re.DOTALL)
+WAYBACK_COMMENTS_REGEX = re.compile(b"<!--\n     FILE ARCHIVED ON.*", re.DOTALL)
+WAYBACK_TOOLBAR_REGEX = re.compile(b"<!-- BEGIN WAYBACK TOOLBAR INSERT -->.*<!-- END WAYBACK TOOLBAR INSERT -->\n ",
+                                   re.DOTALL)
 
 SOCKS_PROXIES = {
     '1221': 'maws@srv-r940-02.srv.cispa.saarland',

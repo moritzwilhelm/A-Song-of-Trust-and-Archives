@@ -1,5 +1,6 @@
 import gzip
 import random
+import re
 import signal
 import traceback
 from collections import defaultdict
@@ -15,7 +16,8 @@ from psycopg2.extras import Json
 from requests import Session, RequestException, Response
 
 from configs.analysis import MEMENTO_HEADER
-from configs.crawling import USER_AGENT, TODAY
+from configs.crawling import USER_AGENT, TODAY, WAYBACK_HEADER_REGEX, WAYBACK_TOOLBAR_REGEX, WAYBACK_COMMENTS_REGEX, \
+    WAYBACK_MACHINE_API_PATH
 from configs.database import STORAGE, get_database_cursor
 
 
@@ -86,6 +88,13 @@ def timeout(seconds: int) -> Generator[None, None, None]:
         signal.signal(signal.SIGALRM, signal.SIG_IGN)
 
 
+def remove_wayback_toolbar(content: bytes) -> bytes:
+    """Remove injected JS in <head>, toolbar in <body>, and comment after </html>."""
+    content = re.sub(WAYBACK_HEADER_REGEX, b'<head>', content)
+    content = re.sub(WAYBACK_TOOLBAR_REGEX, b'', content)
+    return re.sub(WAYBACK_COMMENTS_REGEX, b'', content)
+
+
 def store_on_disk(content: bytes) -> str:
     """Store the provided content on the disk and compute the content hash."""
     content_hash = sha256(content).hexdigest()
@@ -148,7 +157,8 @@ def crawl(url: str,
         raise CrawlingException(url) from error
 
     # store content on disk
-    content_hash = store_on_disk(response.content)
+    content = remove_wayback_toolbar(response.content) if url.startswith(WAYBACK_MACHINE_API_PATH) else response.content
+    content_hash = store_on_disk(content)
 
     # mitigate rate-limiting
     if response.status_code == 429:
