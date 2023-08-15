@@ -65,49 +65,57 @@ def reset_failed_cdx_crawls() -> dict[datetime, list[int]]:
         return defaultdict(list, cursor.fetchall())
 
 
-def proximity_set_windows(timestamp: datetime) -> Generator[tuple[datetime, datetime], None, None]:
-    """Yield all 1-week proximity set windows within the 12-week snapshot timeframe."""
-    yield timestamp - timedelta(days=3, hours=12), timestamp + timedelta(days=3, hours=12)
+def proximity_set_window_centers(timestamp: datetime) -> Generator[datetime, None, None]:
+    """Yield all 1-week proximity set window base timestamps within the 12-week snapshot timeframe."""
+    yield timestamp
 
-    for i in range(1, 39):
-        yield timestamp - timedelta(days=3 + i, hours=12), timestamp + timedelta(days=3 - i, hours=12)
-        yield timestamp - timedelta(days=3 - i, hours=12), timestamp + timedelta(days=3 + i, hours=12)
+    for i in range(1, 42):
+        yield timestamp - timedelta(days=i)
+        yield timestamp + timedelta(days=i)
 
 
 def find_candidates(url: str,
                     timestamp: datetime,
-                    n: int,
+                    n: int = 10,
                     proxies: dict[str, str] | None = None,
                     session: Session | None = None) -> list[str]:
     """Collect the `n` best candidates for the proximity set of (`url`, `timestamp`)."""
     candidates = []
+    left_limit, right_limit = timestamp - timedelta(weeks=6), timestamp + timedelta(weeks=6)
 
-    def timestamp_distance(value: str) -> timedelta:
-        return abs(timestamp - datetime.strptime(value, INTERNET_ARCHIVE_TIMESTAMP_FORMAT).replace(tzinfo=utc))
+    response = crawl(
+        CDX_REQUEST.format(
+            url=url,
+            from_timestamp=left_limit.strftime(INTERNET_ARCHIVE_TIMESTAMP_FORMAT),
+            to_timestamp=right_limit.strftime(INTERNET_ARCHIVE_TIMESTAMP_FORMAT)
+        ),
+        proxies=proxies,
+        session=session
+    )
 
-    for from_timestamp, to_timestamp in proximity_set_windows(timestamp):
-        sleep(1)
-        response = crawl(
-            CDX_REQUEST.format(
-                url=url,
-                from_timestamp=from_timestamp.strftime(INTERNET_ARCHIVE_TIMESTAMP_FORMAT),
-                to_timestamp=to_timestamp.strftime(INTERNET_ARCHIVE_TIMESTAMP_FORMAT)
-            ),
-            proxies=proxies,
-            session=session
-        )
+    try:
+        timestamps = response.json()
+    except JSONDecodeError as error:
+        raise CrawlingException(url) from error
 
-        try:
-            timestamps = response.json()
-        except JSONDecodeError as error:
-            raise CrawlingException(url) from error
+    if not timestamps:
+        return []
 
-        if timestamps:
-            candidates = max(candidates,
-                             nsmallest(n, set(chain.from_iterable(timestamps[1:])), key=timestamp_distance),
-                             key=len)
-            if len(candidates) == n:
-                break
+    timestamps = set(chain.from_iterable(timestamps[1:]))
+    timestamps = [datetime.strptime(ts, INTERNET_ARCHIVE_TIMESTAMP_FORMAT).replace(tzinfo=utc) for ts in timestamps]
+
+    for base_timestamp in proximity_set_window_centers(timestamp):
+        left = max(left_limit, base_timestamp - timedelta(days=3, hours=12))
+        right = min(right_limit, base_timestamp + timedelta(days=3, hours=12))
+
+        def base_timestamp_distance(value: datetime) -> timedelta:
+            return abs(base_timestamp - value)
+
+        new_candidates = nsmallest(n, [ts for ts in timestamps if left <= ts <= right], key=base_timestamp_distance)
+        candidates = max(candidates, new_candidates, key=len)
+
+        if len(candidates) == n:
+            break
 
     return candidates
 
@@ -117,6 +125,7 @@ def cdx_worker(jobs: list[CdxJob]) -> None:
     session = requests.Session()
     with get_database_cursor(autocommit=True) as cursor:
         for timestamp, tranco_id, domain, url, proxies in jobs:
+            sleep(0.2)
             try:
                 candidates = find_candidates(url, timestamp, 10, proxies, session)
                 cursor.execute(f"""
