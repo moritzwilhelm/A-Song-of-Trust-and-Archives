@@ -125,7 +125,7 @@ def cdx_worker(jobs: list[CdxJob]) -> None:
     session = requests.Session()
     with get_database_cursor(autocommit=True) as cursor:
         for timestamp, tranco_id, domain, url, proxies in jobs:
-            sleep(0.2)
+            sleep(1)
             try:
                 candidates = find_candidates(url, timestamp, 10, proxies, session)
                 cursor.execute(f"""

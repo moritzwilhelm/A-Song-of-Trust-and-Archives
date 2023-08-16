@@ -154,6 +154,9 @@ def crawl(url: str,
             response = session.get(url, headers=headers, proxies=proxies, timeout=20)
             response_time = time_ns() - start
     except (RequestException, TimeoutError) as error:
+        if url.startswith(WAYBACK_MACHINE_API_PATH):
+            print("WARNING: RATE-LIMITING - ConnectionError", error)
+            sleep(60)
         raise CrawlingException(url) from error
 
     # store content on disk
@@ -163,6 +166,6 @@ def crawl(url: str,
     # mitigate rate-limiting
     if response.status_code == 429:
         print("WARNING: RATE-LIMITING - 429")
-        sleep(10)
+        sleep(60)
 
     return CrawlingResponse(response, content_hash, response_time)
