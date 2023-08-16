@@ -117,7 +117,7 @@ def find_candidates(url: str,
         if len(candidates) == n:
             break
 
-    return candidates
+    return [candidate.strftime(INTERNET_ARCHIVE_TIMESTAMP_FORMAT) for candidate in candidates]
 
 
 def cdx_worker(jobs: list[CdxJob]) -> None:
