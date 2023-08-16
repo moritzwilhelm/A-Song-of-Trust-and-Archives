@@ -1,3 +1,4 @@
+import json
 from collections.abc import Generator
 from datetime import datetime, date, timedelta
 from itertools import islice
@@ -44,3 +45,9 @@ def get_tranco_data(tranco_file: Path = get_absolute_tranco_file_path(),
 def date_range(start: datetime | date, end: datetime | date, n: int = inf) -> Generator[datetime | date, None, None]:
     """Yield a generator covering all (or at most `n`) dates from `start` up to (including) `end`."""
     return (start + timedelta(i) for i in range(min((end - start).days + 1, n)))
+
+
+def get_tracking_domains() -> set[str]:
+    """Return the set of tracking domains."""
+    with open(PROJECT_ROOT.joinpath('src', 'configs', 'trackers.json')) as file:
+        return set(json.load(file))

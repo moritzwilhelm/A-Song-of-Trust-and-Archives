@@ -1,23 +1,15 @@
 import json
 from collections import defaultdict
-from datetime import datetime, timedelta
 
 from tqdm import tqdm
 
+from analysis.analysis_utils import compute_tolerance_window
 from configs.analysis import MEMENTO_HEADER
 from configs.crawling import TIMESTAMPS
 from configs.database import get_database_cursor
 from configs.random_sample_tranco import RANDOM_SAMPLING_TABLE_NAME
 from configs.utils import join_with_json_path
 from data_collection.collect_archive_data import TABLE_NAME
-
-
-def compute_tolerance_window(timestamp: datetime, weeks: int | None = None) -> tuple[datetime, datetime]:
-    """Return a start and end datetime based on the provided `timestamp` and number of `weeks` of tolerance."""
-    if weeks is not None:
-        return timestamp - timedelta(weeks=weeks), timestamp + timedelta(weeks=weeks)
-    else:
-        return datetime.min, datetime.max
 
 
 def compute_hits(table_name: str, tolerance: int | None = None):

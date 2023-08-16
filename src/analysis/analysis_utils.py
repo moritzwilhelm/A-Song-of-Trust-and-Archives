@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from analysis.header_utils import Headers
 from configs.analysis import RELEVANT_HEADERS, INTERNET_ARCHIVE_HEADER_PREFIX, MEMENTO_HEADER
@@ -31,3 +31,11 @@ def parse_archived_headers(headers: Headers) -> Headers:
         result[MEMENTO_HEADER] = headers[MEMENTO_HEADER]
 
     return Headers(result)
+
+
+def compute_tolerance_window(timestamp: datetime, weeks: int | None = None) -> tuple[datetime, datetime]:
+    """Return a start and end datetime based on the provided `timestamp` and number of `weeks` of tolerance."""
+    if weeks is not None:
+        return timestamp - timedelta(weeks=weeks), timestamp + timedelta(weeks=weeks)
+    else:
+        return datetime.min, datetime.max
