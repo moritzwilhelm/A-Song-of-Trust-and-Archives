@@ -10,6 +10,8 @@ from configs.crawling import TIMESTAMPS, TODAY, SOCKS_PROXIES
 from configs.utils import date_range
 from data_collection.collect_archive_data import prepare_jobs as prepare_archive_jobs, run_jobs as run_archive_jobs
 from data_collection.collect_archive_proximity_sets import crawl_web_archive_cdx, crawl_proximity_sets
+from data_collection.collect_contributors import get_archive_sources, prepare_jobs as prepare_metadata_jobs, \
+    run_jobs as run_metadata_jobs
 from data_collection.crawling import partition_jobs
 
 
@@ -39,7 +41,8 @@ def parse_args() -> Arguments:
     """Parse command line arguments for starting crawlers distributed over different proxies."""
     parser = ArgumentParser(description='Start archive crawlers and distribute over proxies.')
     parser.add_argument('crawl_type', metavar='<crawl_type>',
-                        choices=['test_proxies', 'proximity_set_indexes', 'proximity_sets', 'daily_archive'],
+                        choices=['test_proxies', 'proximity_set_indexes', 'proximity_sets', 'daily_archive',
+                                 'archive_metadata'],
                         help='the type of crawl to start')
     return parser.parse_args()
 
@@ -107,20 +110,35 @@ def start_collect_daily_archive_data(configs: list[dict[str, str] | None]) -> No
         nd_pool.starmap(crawl_daily_web_archive_worker, zip(partition_jobs(relevant_timestamps, len(configs)), configs))
 
 
+def crawl_archive_metadata_api(sources: list[str], proxies: dict[str, str] | None) -> None:
+    """Worker that initiates the Internet Archive Metadata crawl."""
+    jobs = prepare_metadata_jobs(sources=sources, proxies=proxies)
+    run_metadata_jobs(jobs)
+
+
+def start_collect_contributors(configs: list[dict[str, str] | None]) -> None:
+    """Start crawling the Internet Archive Metadata API for all missing sources."""
+    with NoDaemonPool(len(configs)) as nd_pool:
+        nd_pool.starmap(crawl_archive_metadata_api, zip(partition_jobs(get_archive_sources(), len(configs)), configs))
+
+
 def main():
     args = parse_args()
     proxy_configs = build_socks_proxy_configs()
 
     open_socks_proxies()
     try:
-        if args.crawl_type == 'test_proxies':
-            test_socks_proxies()
-        elif args.crawl_type == 'proximity_set_indexes':
-            start_collect_archive_proximity_set_indexes(proxy_configs)
-        elif args.crawl_type == 'proximity_sets':
-            start_collect_archive_proximity_sets(proxy_configs)
-        elif args.crawl_type == 'daily_archive':
-            start_collect_daily_archive_data(proxy_configs)
+        match args.crawl_type:
+            case 'test_proxies':
+                test_socks_proxies()
+            case 'proximity_set_indexes':
+                start_collect_archive_proximity_set_indexes(proxy_configs)
+            case 'proximity_sets':
+                start_collect_archive_proximity_sets(proxy_configs)
+            case 'daily_archive':
+                start_collect_daily_archive_data(proxy_configs)
+            case 'archive_metadata':
+                start_collect_contributors(proxy_configs)
     finally:
         close_socks_proxies()
 

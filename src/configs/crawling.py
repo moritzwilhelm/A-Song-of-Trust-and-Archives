@@ -6,6 +6,7 @@ from pytz import utc
 WAYBACK_MACHINE_API_PATH = 'https://web.archive.org/web/'
 INTERNET_ARCHIVE_URL = 'https://web.archive.org/web/{timestamp}/{url}'
 INTERNET_ARCHIVE_TIMESTAMP_FORMAT = '%Y%m%d%H%M%S'
+INTERNET_ARCHIVE_METADATA_API = 'https://archive.org/metadata/{source}'
 
 NUMBER_URLS = 20_000
 PREFIX = 'http://www.'

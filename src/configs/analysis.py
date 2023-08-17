@@ -9,6 +9,7 @@ RELEVANT_HEADERS = (
     'Cross-Origin-Embedder-Policy'
 )
 
+INTERNET_ARCHIVE_SOURCE_HEADER = 'X-Archive-Src'
 INTERNET_ARCHIVE_HEADER_PREFIX = 'X-Archive-Orig-'
 INTERNET_ARCHIVE_END_URL_REGEX = r'^(?:[^\/]*\/){5}(.*)'
 
