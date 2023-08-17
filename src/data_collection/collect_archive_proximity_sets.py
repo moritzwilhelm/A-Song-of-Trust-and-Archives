@@ -90,7 +90,8 @@ def find_candidates(url: str,
             to_timestamp=right_limit.strftime(INTERNET_ARCHIVE_TIMESTAMP_FORMAT)
         ),
         proxies=proxies,
-        session=session
+        session=session,
+        store_content=False
     )
 
     try:

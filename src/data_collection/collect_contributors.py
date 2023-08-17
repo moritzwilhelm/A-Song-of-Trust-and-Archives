@@ -58,7 +58,8 @@ def crawl_metadata(source: str,
                    proxies: dict[str, str] | None = None,
                    session: Session | None = None) -> tuple[Json, Json, str]:
     """Crawl the Internet Archive Metadata API for the provided source."""
-    response = crawl(INTERNET_ARCHIVE_METADATA_API.format(source=source), proxies=proxies, session=session)
+    response = crawl(INTERNET_ARCHIVE_METADATA_API.format(source=source),
+                     proxies=proxies, session=session, store_content=False)
 
     try:
         data = response.json()

@@ -88,7 +88,7 @@ def timeout(seconds: int) -> Generator[None, None, None]:
         signal.signal(signal.SIGALRM, signal.SIG_IGN)
 
 
-def remove_wayback_toolbar(content: bytes) -> bytes:
+def remove_toolbar(content: bytes) -> bytes:
     """Remove injected JS in <head>, toolbar in <body>, and comment after </html>."""
     content = re.sub(WAYBACK_HEADER_REGEX, b'<head>', content)
     content = re.sub(WAYBACK_TOOLBAR_REGEX, b'', content)
@@ -137,7 +137,8 @@ def crawl(url: str,
           headers: dict[str, str] | None = None,
           user_agent: str = USER_AGENT,
           proxies: dict[str, str] | None = None,
-          session: Session | None = None) -> CrawlingResponse:
+          session: Session | None = None,
+          store_content: bool = True) -> CrawlingResponse:
     """Crawl the URL, using the provided `headers`, `user_agent`, `session` (if specified).
 
     Return the response object and its hashed content. Raise a CrawlingException on failure.
@@ -163,8 +164,11 @@ def crawl(url: str,
         raise CrawlingException(url) from error
 
     # store content on disk
-    content = remove_wayback_toolbar(response.content) if url.startswith(WAYBACK_MACHINE_API_PATH) else response.content
-    content_hash = store_on_disk(content)
+    if store_content:
+        content = remove_toolbar(response.content) if url.startswith(WAYBACK_MACHINE_API_PATH) else response.content
+        content_hash = store_on_disk(content)
+    else:
+        content_hash = None
 
     # mitigate rate-limiting
     if response.status_code == 429:
