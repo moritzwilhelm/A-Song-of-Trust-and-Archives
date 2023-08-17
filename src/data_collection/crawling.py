@@ -13,7 +13,7 @@ from time import time_ns, sleep
 from types import FrameType
 
 from psycopg2.extras import Json
-from requests import Session, RequestException, Response
+from requests import Session, Response, ConnectionError, RequestException
 
 from configs.analysis import MEMENTO_HEADER
 from configs.crawling import USER_AGENT, TODAY, WAYBACK_HEADER_REGEX, WAYBACK_TOOLBAR_REGEX, WAYBACK_COMMENTS_REGEX, \
@@ -153,10 +153,13 @@ def crawl(url: str,
             start = time_ns()
             response = session.get(url, headers=headers, proxies=proxies, timeout=20)
             response_time = time_ns() - start
-    except (RequestException, TimeoutError) as error:
-        if url.startswith(WAYBACK_MACHINE_API_PATH):
+    except ConnectionError as error:
+        if (url.startswith(WAYBACK_MACHINE_API_PATH) and
+                ('Connection refused' in str(error) or 'Connection closed unexpectedly' in str(error))):
             print("WARNING: RATE-LIMITING - ConnectionError", error)
             sleep(60)
+        raise CrawlingException(url) from error
+    except (RequestException, TimeoutError) as error:
         raise CrawlingException(url) from error
 
     # store content on disk
