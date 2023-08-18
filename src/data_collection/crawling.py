@@ -157,7 +157,7 @@ def crawl(url: str,
     except ConnectionError as error:
         if (url.startswith(WAYBACK_MACHINE_API_PATH) and
                 ('Connection refused' in str(error) or 'Connection closed unexpectedly' in str(error))):
-            print("WARNING: RATE-LIMITING - ConnectionError", error)
+            print('WARNING: RATE-LIMITING - ConnectionError', error)
             sleep(60)
         raise CrawlingException(url) from error
     except (RequestException, TimeoutError) as error:
@@ -171,8 +171,8 @@ def crawl(url: str,
         content_hash = None
 
     # mitigate rate-limiting
-    if response.status_code == 429:
-        print("WARNING: RATE-LIMITING - 429")
+    if response.status_code == 429 and MEMENTO_HEADER not in response.headers:
+        print('WARNING: RATE-LIMITING - 429')
         sleep(60)
 
     return CrawlingResponse(response, content_hash, response_time)
