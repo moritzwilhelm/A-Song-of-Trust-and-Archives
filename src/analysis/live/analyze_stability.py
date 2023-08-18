@@ -60,6 +60,7 @@ def analyze_archived_snapshots(targets: list[tuple[int, str, str]],
     """Compute the stability of archived snapshots from `start` date up to (inclusive) `end` date."""
     assert start <= end
 
+    drifts = defaultdict(list)
     result = defaultdict(lambda: defaultdict(dict))
     for requested_date in date_range(start, end):
         archive_data = {}
@@ -75,7 +76,9 @@ def analyze_archived_snapshots(targets: list[tuple[int, str, str]],
         for tid, _, _ in tqdm(targets):
             previous_status = Status.MISSING
             previous_snapshot = None
-            for date in date_range(requested_date.date(), requested_date.date() + timedelta(n)):
+            was_removed = False
+            current_drifts = {}
+            for i, date in enumerate(date_range(requested_date.date(), requested_date.date() + timedelta(n))):
                 if (tid, date) not in archive_data:
                     match previous_status:
                         case Status.ADDED | Status.MODIFIED:
@@ -86,10 +89,16 @@ def analyze_archived_snapshots(targets: list[tuple[int, str, str]],
                             status = previous_status
                 else:
                     end_url, memento_datetime, status_code = archive_data[tid, date]
+
+                    # compute drifts
+                    if memento_datetime is not None:
+                        current_drifts[i] = (memento_datetime - requested_date).total_seconds() / (60 * 60 * 24)
+
                     if memento_datetime is None or abs(memento_datetime - requested_date) > timedelta(1):
                         match previous_status:
                             case Status.ADDED | Status.MODIFIED | Status.UNMODIFIED:
                                 status = Status.REMOVED
+                                was_removed = True
                             case _:
                                 status = Status.MISSING
                     else:
@@ -103,6 +112,13 @@ def analyze_archived_snapshots(targets: list[tuple[int, str, str]],
 
                 result[str(requested_date)][tid][str(date)] = status
                 previous_status = status
+
+            if was_removed:
+                for i in current_drifts:
+                    drifts[i].append(current_drifts[i])
+
+    with open(join_with_json_path(f"REMOVE-DRIFTS-{ARCHIVE_TABLE_NAME}.json"), 'w') as file:
+        json.dump(drifts, file, indent=2, sort_keys=True)
 
     with open(join_with_json_path(f"STABILITY-{ARCHIVE_TABLE_NAME}-snapshots.json"), 'w') as file:
         json.dump(result, file, indent=2, sort_keys=True)

@@ -3,6 +3,7 @@ from datetime import datetime, date as date_type
 from datetime import timedelta
 from pathlib import Path
 
+import pandas as pd
 from matplotlib import pyplot as plt
 from matplotlib.ticker import PercentFormatter
 from pandas import DataFrame
@@ -112,6 +113,30 @@ def plot_snapshot_stability(input_path: Path,
         plt.close()
 
 
+def plot_drifts(input_path: Path) -> None:
+    """Plot the temporal drifts between archived date and requested date."""
+    with open(input_path) as file:
+        data = pd.read_json(file, orient='index').transpose()
+
+    axes = data.plot.box(
+        grid=True,
+        boxprops=dict(linestyle='-', linewidth=1, color=COLORS[0]),
+        whiskerprops=dict(linestyle='dotted', linewidth=1, color=COLORS[1]),
+        medianprops=dict(linestyle='-', linewidth=1, color=COLORS[2]),
+        capprops=dict(linestyle='-', linewidth=1, color=COLORS[3]),
+        flierprops=dict(linestyle='none', markersize=1, linewidth=0, color=COLORS[4]),
+        showfliers=False
+    )
+    axes.set_xlabel('Timestamp')
+    axes.set_xticks(range(16))
+    axes.set_ylabel('Temporal drift in days')
+
+    axes.figure.savefig(json_to_plots_path(input_path), bbox_inches='tight', dpi=300)
+
+    axes.figure.show()
+    plt.close()
+
+
 @latexify()
 def main():
     # LIVE DATA
@@ -129,10 +154,12 @@ def main():
     )
 
     plot_snapshot_stability(
-        join_with_json_path("STABILITY-archive_data_20230501-snapshots-2023-05-01.json"),
+        join_with_json_path('STABILITY-archive_data_20230501-snapshots-2023-05-01.json'),
         start=datetime(2023, 5, 1, 12, tzinfo=utc),
         end=datetime(2023, 5, 1, 12, tzinfo=utc)
     )
+
+    plot_drifts(join_with_json_path(f"REMOVE-DRIFTS-{ARCHIVE_TABLE_NAME}.json"))
 
 
 if __name__ == '__main__':
