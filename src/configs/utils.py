@@ -28,7 +28,7 @@ def json_to_plots_path(file_path: Path, extension: str = '.png') -> Path:
 
 def get_absolute_tranco_file_path() -> Path:
     """Return absolute path to the Tranco file."""
-    return INSTALLED_PROJECT_ROOT.joinpath('configs', 'tranco_W9JG9.csv')
+    return PROJECT_ROOT.joinpath('src', 'configs', 'files', 'tranco_W9JG9.csv')
 
 
 def get_tranco_data(tranco_file: Path = get_absolute_tranco_file_path(),
@@ -54,7 +54,8 @@ def compute_tolerance_window(timestamp: datetime, tolerance: timedelta | None = 
     else:
         return datetime.min, datetime.max
 
+
 def get_tracking_domains() -> set[str]:
     """Return the set of tracking domains."""
-    with open(PROJECT_ROOT.joinpath('src', 'configs', 'trackers.json')) as file:
+    with open(PROJECT_ROOT.joinpath('src', 'configs', 'files', 'trackers.json')) as file:
         return set(json.load(file))
