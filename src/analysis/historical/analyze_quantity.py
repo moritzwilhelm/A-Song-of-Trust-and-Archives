@@ -1,19 +1,19 @@
 import json
 from collections import defaultdict
+from datetime import timedelta
 
 from tqdm import tqdm
 
-from analysis.analysis_utils import compute_tolerance_window
 from configs.analysis import MEMENTO_HEADER
 from configs.crawling import TIMESTAMPS
 from configs.database import get_database_cursor
 from configs.random_sample_tranco import RANDOM_SAMPLING_TABLE_NAME
-from configs.utils import join_with_json_path
+from configs.utils import join_with_json_path, compute_tolerance_window
 from data_collection.collect_archive_data import TABLE_NAME
 
 
-def compute_hits(table_name: str, tolerance: int | None = None):
-    """Compute the number of archive hits that match the given `tolerance` in weeks."""
+def compute_hits(table_name: str, tolerance: timedelta | None = None) -> None:
+    """Compute the number of archive hits that match the given `tolerance`."""
     num_hits = {}
     with get_database_cursor() as cursor:
         for timestamp in tqdm(TIMESTAMPS):
@@ -25,11 +25,11 @@ def compute_hits(table_name: str, tolerance: int | None = None):
 
             num_hits[str(timestamp)] = cursor.fetchone()[0]
 
-    with open(join_with_json_path(f"QUANTITY-{table_name}-{tolerance}-w-tolerance.json"), 'w') as file:
+    with open(join_with_json_path(f"QUANTITY-{table_name}.{tolerance}.json"), 'w') as file:
         json.dump(num_hits, file, indent=2, sort_keys=True)
 
 
-def compute_drifts(table_name: str, tolerance: int | None = None):
+def compute_drifts(table_name: str, tolerance: timedelta | None = None) -> None:
     """Collect the drifts between archived date and requested date, only considering hits that match the `tolerance`."""
     drifts = defaultdict(list)
     with get_database_cursor() as cursor:
@@ -44,12 +44,12 @@ def compute_drifts(table_name: str, tolerance: int | None = None):
             for archived_date, in cursor.fetchall():
                 drifts[str(timestamp)].append((archived_date - timestamp).total_seconds() / (60 * 60 * 24))
 
-    with open(join_with_json_path(f"DRIFTS-{table_name}-{tolerance}-w-tolerance.json"), 'w') as file:
+    with open(join_with_json_path(f"DRIFTS-{table_name}.{tolerance}.json"), 'w') as file:
         json.dump(drifts, file, indent=2, sort_keys=True)
 
 
-def compute_hits_per_bucket(tolerance: int | None = None):
-    """Compute the number of archive hits per 100k bucket that match the given `tolerance` in weeks."""
+def compute_hits_per_bucket(tolerance: timedelta | None = None) -> None:
+    """Compute the number of archive hits per 100k bucket that match the given `tolerance`."""
     num_hits = defaultdict(dict)
     with get_database_cursor() as cursor:
         for start, end in tqdm([(i, i + 99_999) for i in range(1, 1_000_000, 100_000)]):
@@ -62,20 +62,20 @@ def compute_hits_per_bucket(tolerance: int | None = None):
 
                 num_hits[str(timestamp)][end // 1_000] = cursor.fetchone()[0]
 
-    with open(join_with_json_path(f"BUCKETS-{RANDOM_SAMPLING_TABLE_NAME}-{tolerance}-w-tolerance.json"), 'w') as file:
+    with open(join_with_json_path(f"BUCKETS-{RANDOM_SAMPLING_TABLE_NAME}.{tolerance}.json"), 'w') as file:
         json.dump(num_hits, file, indent=2, sort_keys=True)
 
 
 def main():
     for table_name in TABLE_NAME, RANDOM_SAMPLING_TABLE_NAME:
         compute_hits(table_name)
-        compute_hits(table_name, tolerance=6)
+        compute_hits(table_name, tolerance=timedelta(weeks=6))
 
         compute_drifts(table_name)
-        compute_drifts(table_name, tolerance=6)
+        compute_drifts(table_name, tolerance=timedelta(weeks=6))
 
     compute_hits_per_bucket()
-    compute_hits_per_bucket(tolerance=6)
+    compute_hits_per_bucket(tolerance=timedelta(weeks=6))
 
 
 if __name__ == '__main__':

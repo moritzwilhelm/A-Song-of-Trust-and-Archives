@@ -12,7 +12,7 @@ from analysis.header_utils import Headers, HeadersEncoder, HeadersDecoder
 from configs.analysis import INTERNET_ARCHIVE_END_URL_REGEX, MEMENTO_HEADER
 from configs.crawling import INTERNET_ARCHIVE_TIMESTAMP_FORMAT, TIMESTAMPS
 from configs.database import get_database_cursor
-from configs.utils import join_with_json_path, get_tranco_data
+from configs.utils import join_with_json_path, get_tranco_data, compute_tolerance_window
 from data_collection.collect_archive_proximity_sets import CANDIDATES_TABLE_NAME, \
     TABLE_NAME as PROXIMITY_SETS_TABLE_NAME
 
@@ -45,7 +45,7 @@ def build_proximity_sets(targets: list[tuple[int, str, str]], n: int = 10) -> No
                 FROM {PROXIMITY_SETS_TABLE_NAME} JOIN {METADATA_TABLE_NAME} USING (content_hash)
                 WHERE (headers->>%s)::TIMESTAMPTZ BETWEEN %s AND %s
             """, (MEMENTO_HEADER.lower(), INTERNET_ARCHIVE_END_URL_REGEX, MEMENTO_HEADER.lower(),
-                  timestamp - timedelta(days=3, hours=12), timestamp + timedelta(days=3, hours=12)))
+                  *compute_tolerance_window(timestamp, timedelta(days=3, hours=12))))
             for tid, request_timestamp, archived_timestamp, headers, *data in cursor.fetchall():
                 ps_members_data[tid, request_timestamp] = (archived_timestamp, parse_archived_headers(headers), *data)
 

@@ -14,7 +14,7 @@ from requests import Session, JSONDecodeError
 
 from configs.crawling import NUMBER_URLS, INTERNET_ARCHIVE_TIMESTAMP_FORMAT, TIMESTAMPS, INTERNET_ARCHIVE_URL
 from configs.database import get_database_cursor
-from configs.utils import get_absolute_tranco_file_path, get_tranco_data
+from configs.utils import get_absolute_tranco_file_path, get_tranco_data, compute_tolerance_window
 from data_collection.collect_archive_data import WORKERS, ArchiveJob, worker as archive_worker
 from data_collection.crawling import setup, reset_failed_archive_crawls, partition_jobs, CrawlingException, crawl
 
@@ -81,7 +81,7 @@ def find_candidates(url: str,
                     session: Session | None = None) -> list[str]:
     """Collect the `n` best candidates for the proximity set of (`url`, `timestamp`)."""
     candidates = []
-    left_limit, right_limit = timestamp - timedelta(weeks=6), timestamp + timedelta(weeks=6)
+    left_limit, right_limit = compute_tolerance_window(timestamp, timedelta(weeks=6))
 
     response = crawl(
         CDX_REQUEST.format(

@@ -47,6 +47,13 @@ def date_range(start: datetime | date, end: datetime | date, n: int = inf) -> Ge
     return (start + timedelta(i) for i in range(min((end - start).days + 1, n)))
 
 
+def compute_tolerance_window(timestamp: datetime, tolerance: timedelta | None = None) -> tuple[datetime, datetime]:
+    """Return a start and end datetime based on the provided `timestamp` and number of `weeks` of tolerance."""
+    if tolerance is not None:
+        return timestamp - tolerance, timestamp + tolerance
+    else:
+        return datetime.min, datetime.max
+
 def get_tracking_domains() -> set[str]:
     """Return the set of tracking domains."""
     with open(PROJECT_ROOT.joinpath('src', 'configs', 'trackers.json')) as file:

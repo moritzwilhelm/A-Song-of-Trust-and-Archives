@@ -1,16 +1,16 @@
 import json
 from collections import defaultdict
+from datetime import timedelta
 from pathlib import Path
 
 from tqdm import tqdm
 
-from analysis.analysis_utils import compute_tolerance_window
 from analysis.extract_script_metadata import METADATA_TABLE_NAME
 from analysis.header_utils import HeadersDecoder
 from configs.analysis import MEMENTO_HEADER
 from configs.crawling import TIMESTAMPS
 from configs.database import get_database_cursor
-from configs.utils import join_with_json_path, get_tranco_data, get_tracking_domains
+from configs.utils import join_with_json_path, get_tranco_data, compute_tolerance_window, get_tracking_domains
 from data_collection.collect_archive_data import TABLE_NAME
 
 
@@ -27,7 +27,7 @@ def analyze_inclusions() -> None:
                     FROM {TABLE_NAME} JOIN {METADATA_TABLE_NAME} USING (content_hash)
                     WHERE timestamp=%s AND (headers->>%s)::TIMESTAMPTZ BETWEEN %s AND %s
                 ) AS INCLUSIONS
-            """, (timestamp, MEMENTO_HEADER.lower(), *compute_tolerance_window(timestamp, 6)))
+            """, (timestamp, MEMENTO_HEADER.lower(), *compute_tolerance_window(timestamp, timedelta(weeks=6))))
 
             relevant_sources_count, hosts_count, sites_count = cursor.fetchone()
             inclusions[str(timestamp)] = {
