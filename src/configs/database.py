@@ -1,6 +1,7 @@
 import json
 from collections.abc import Generator
 from contextlib import contextmanager
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -47,3 +48,17 @@ def get_database_cursor(autocommit: bool = False) -> Generator[cursor_type, None
                 yield cursor
     finally:
         connection.close()
+
+
+def get_min_timestamp(table_name: str) -> datetime:
+    """Query the database for the `minimum timestamp` in `table_name`."""
+    with get_database_cursor() as cursor:
+        cursor.execute(f"SELECT MIN(timestamp) FROM {table_name}")
+        return cursor.fetchone()[0]
+
+
+def get_max_timestamp(table_name: str) -> datetime:
+    """Query the database for the `maximum timestamp` in `table_name`."""
+    with get_database_cursor() as cursor:
+        cursor.execute(f"SELECT MAX(timestamp) FROM {table_name}")
+        return cursor.fetchone()[0]

@@ -1,22 +1,7 @@
-from datetime import datetime
+from datetime import timedelta
 
 from analysis.header_utils import Headers
 from configs.analysis import RELEVANT_HEADERS, INTERNET_ARCHIVE_HEADER_PREFIX, MEMENTO_HEADER
-from configs.database import get_database_cursor
-
-
-def get_min_timestamp(table_name: str) -> datetime:
-    """Query the database for the `minimum timestamp` in `table_name`."""
-    with get_database_cursor() as cursor:
-        cursor.execute(f"SELECT MIN(timestamp) FROM {table_name}")
-        return cursor.fetchone()[0]
-
-
-def get_max_timestamp(table_name: str) -> datetime:
-    """Query the database for the `maximum timestamp` in `table_name`."""
-    with get_database_cursor() as cursor:
-        cursor.execute(f"SELECT MAX(timestamp) FROM {table_name}")
-        return cursor.fetchone()[0]
 
 
 def parse_archived_headers(headers: Headers) -> Headers:
@@ -31,3 +16,8 @@ def parse_archived_headers(headers: Headers) -> Headers:
         result[MEMENTO_HEADER] = headers[MEMENTO_HEADER]
 
     return Headers(result)
+
+
+def timedelta_to_days(delta: timedelta) -> float:
+    """Translate the provided `timedelta` into days."""
+    return delta.total_seconds() / (60 * 60 * 24)

@@ -4,6 +4,7 @@ from datetime import timedelta
 
 from tqdm import tqdm
 
+from analysis.analysis_utils import timedelta_to_days
 from configs.analysis import MEMENTO_HEADER
 from configs.crawling import TIMESTAMPS
 from configs.database import get_database_cursor
@@ -42,7 +43,7 @@ def compute_drifts(table_name: str, tolerance: timedelta | None = None) -> None:
                   *compute_tolerance_window(timestamp, tolerance)))
 
             for archived_date, in cursor.fetchall():
-                drifts[str(timestamp)].append((archived_date - timestamp).total_seconds() / (60 * 60 * 24))
+                drifts[str(timestamp)].append(timedelta_to_days(archived_date - timestamp))
 
     with open(join_with_json_path(f"DRIFTS-{table_name}.{tolerance}.json"), 'w') as file:
         json.dump(drifts, file, indent=2, sort_keys=True)

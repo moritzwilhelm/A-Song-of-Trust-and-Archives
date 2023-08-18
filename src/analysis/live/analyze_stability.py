@@ -5,11 +5,11 @@ from typing import Callable
 
 from tqdm import tqdm
 
-from analysis.analysis_utils import get_min_timestamp, get_max_timestamp
+from analysis.analysis_utils import timedelta_to_days
 from analysis.header_utils import Headers, Origin, parse_origin, normalize_headers, classify_headers
 from analysis.live.stability_enums import Status
 from configs.analysis import RELEVANT_HEADERS, MEMENTO_HEADER
-from configs.database import get_database_cursor
+from configs.database import get_database_cursor, get_min_timestamp, get_max_timestamp
 from configs.utils import join_with_json_path, get_tranco_data, date_range
 from data_collection.collect_live_data import TABLE_NAME as LIVE_TABLE_NAME
 
@@ -92,7 +92,7 @@ def analyze_archived_snapshots(targets: list[tuple[int, str, str]],
 
                     # compute drifts
                     if memento_datetime is not None:
-                        current_drifts[i] = (memento_datetime - requested_date).total_seconds() / (60 * 60 * 24)
+                        current_drifts[i] = timedelta_to_days(memento_datetime - requested_date)
 
                     if memento_datetime is None or abs(memento_datetime - requested_date) > timedelta(1):
                         match previous_status:

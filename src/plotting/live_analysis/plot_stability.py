@@ -9,10 +9,10 @@ from matplotlib.ticker import PercentFormatter
 from pandas import DataFrame
 from pytz import utc
 
-from analysis.analysis_utils import get_min_timestamp, get_max_timestamp
 from analysis.live.analyze_stability import ARCHIVE_TABLE_NAME
 from analysis.live.stability_enums import Status
 from configs.analysis import RELEVANT_HEADERS
+from configs.database import get_min_timestamp, get_max_timestamp
 from configs.utils import join_with_json_path, json_to_plots_path, date_range
 from data_collection.collect_live_data import TABLE_NAME as LIVE_TABLE_NAME
 from plotting.plotting_utils import HEADER_ABBREVIATION, STYLE, COLORS, latexify
