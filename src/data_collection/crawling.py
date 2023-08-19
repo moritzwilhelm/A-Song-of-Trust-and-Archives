@@ -56,7 +56,7 @@ def reset_failed_archive_crawls(table_name: str, date: date_type = TODAY.date())
         cursor.execute(f"""
             SELECT timestamp, ARRAY_AGG(tranco_id) FROM {table_name} WHERE crawl_datetime::date=%s GROUP BY timestamp
         """, (date,))
-        return defaultdict(set, set(cursor.fetchall()))
+        return defaultdict(set, ((timestamp, set(ids)) for timestamp, ids in cursor.fetchall()))
 
 
 def partition_jobs(jobs: list, n: int) -> list[list]:

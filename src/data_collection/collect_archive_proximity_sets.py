@@ -57,12 +57,12 @@ def setup_candidates_lists_table() -> None:
             """)
 
 
-def reset_failed_cdx_crawls() -> dict[datetime, list[int]]:
+def reset_failed_cdx_crawls() -> dict[datetime, set[int]]:
     """Delete all crawling results with an error."""
     with get_database_cursor(autocommit=True) as cursor:
         cursor.execute(f"DELETE FROM {CANDIDATES_TABLE_NAME} WHERE error IS NOT NULL")
         cursor.execute(f"SELECT timestamp, ARRAY_AGG(tranco_id) FROM {CANDIDATES_TABLE_NAME} GROUP BY timestamp")
-        return defaultdict(list, cursor.fetchall())
+        return defaultdict(set, ((timestamp, set(ids)) for timestamp, ids in cursor.fetchall()))
 
 
 def proximity_set_window_centers(timestamp: datetime) -> Generator[datetime, None, None]:
