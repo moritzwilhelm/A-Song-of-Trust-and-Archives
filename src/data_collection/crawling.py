@@ -14,6 +14,7 @@ from types import FrameType
 
 from psycopg2.extras import Json
 from requests import Session, Response, ConnectionError, RequestException
+from tldextract import extract
 
 from configs.analysis import MEMENTO_HEADER
 from configs.crawling import USER_AGENT, TODAY, WAYBACK_HEADER_REGEX, WAYBACK_TOOLBAR_REGEX, WAYBACK_COMMENTS_REGEX, \
@@ -155,7 +156,7 @@ def crawl(url: str,
             response = session.get(url, headers=headers, proxies=proxies, timeout=20)
             response_time = time_ns() - start
     except ConnectionError as error:
-        if (url.startswith(WAYBACK_MACHINE_API_PATH) and
+        if (extract(url).registered_domain == 'archive.org' and
                 ('Connection refused' in str(error) or 'Connection closed unexpectedly' in str(error))):
             print('WARNING: RATE-LIMITING - ConnectionError', error)
             sleep(60)
