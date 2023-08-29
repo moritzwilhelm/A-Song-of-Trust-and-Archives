@@ -45,7 +45,7 @@ def build_proximity_sets(targets: list[tuple[int, str, str]], n: int = 10) -> No
                 FROM {PROXIMITY_SETS_TABLE_NAME} JOIN {METADATA_TABLE_NAME} USING (content_hash)
                 WHERE (headers->>%s)::TIMESTAMPTZ BETWEEN %s AND %s
             """, (MEMENTO_HEADER.lower(), INTERNET_ARCHIVE_END_URL_REGEX, MEMENTO_HEADER.lower(),
-                  *compute_tolerance_window(timestamp, timedelta(days=3, hours=12))))
+                  *compute_tolerance_window(timestamp, timedelta(weeks=6))))
             for tid, request_timestamp, archived_timestamp, headers, *data in cursor.fetchall():
                 ps_members_data[tid, request_timestamp] = (archived_timestamp, parse_archived_headers(headers), *data)
 

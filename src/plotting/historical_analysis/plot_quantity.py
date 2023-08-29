@@ -8,7 +8,7 @@ from matplotlib.ticker import PercentFormatter
 from pandas import DataFrame
 
 from configs.crawling import NUMBER_URLS, TIMESTAMPS
-from configs.random_sample_tranco import RANDOM_SAMPLING_TABLE_NAME
+from configs.files.random_sample_tranco import RANDOM_SAMPLING_TABLE_NAME
 from configs.utils import join_with_json_path, join_with_plots_path, json_to_plots_path
 from data_collection.collect_archive_data import TABLE_NAME
 from plotting.plotting_utils import COLORS, get_year_ticks, latexify
@@ -36,25 +36,26 @@ def plot_hits(hits_input_path: Path, fresh_hits_input_path: Path) -> None:
     plt.close()
 
 
-def plot_drifts(input_path: Path) -> None:
+def plot_drifts(input_path: Path, tolerance: int | None) -> None:
     """Plot the temporal drifts between archived date and requested date."""
     with open(input_path) as file:
         data = pd.read_json(file, orient='index').transpose()
 
     axes = data.plot.box(
         grid=True,
-        ylim=(-42, 42),
+        ylim=(-7 * tolerance, 7 * tolerance) if tolerance is not None else None,
         boxprops=dict(linestyle='-', linewidth=1, color=COLORS[0]),
         whiskerprops=dict(linestyle='dotted', linewidth=1, color=COLORS[1]),
         medianprops=dict(linestyle='-', linewidth=1, color=COLORS[2]),
         capprops=dict(linestyle='-', linewidth=1, color=COLORS[3]),
         flierprops=dict(linestyle='none', markersize=1, linewidth=0, color=COLORS[4]),
-        # showfliers=False
+        showfliers=tolerance is not None
     )
     axes.set_xlabel('Timestamp')
     axes.set_xticks(*get_year_ticks(1), rotation=0)
     axes.set_ylabel('Temporal drift in days')
-    axes.set_yticks(range(-42, 43, 7))
+    if tolerance is not None:
+        axes.set_yticks(range(-7 * tolerance, 7 * tolerance + 1, 7))
 
     axes.figure.savefig(json_to_plots_path(input_path), bbox_inches='tight', dpi=300)
 
@@ -76,6 +77,7 @@ def plot_hits_per_buckets(input_path: Path):
         axes.set_yticks(range(0, (NUMBER_URLS // 10) + 1, NUMBER_URLS // 100))
         axes.yaxis.set_major_formatter(PercentFormatter(xmax=NUMBER_URLS / 10))
         axes.legend([f"{bucket}k" for bucket in data.columns], ncol=5, loc='upper center', bbox_to_anchor=(0.5, 1.16))
+
         axes.figure.savefig(json_to_plots_path(input_path, f".{TIMESTAMPS[i].year}-{TIMESTAMPS[i + 4].year}.png"),
                             bbox_inches='tight', dpi=300)
 
@@ -92,9 +94,7 @@ def main():
         )
 
         for tolerance in None, 6:
-            plot_drifts(
-                join_with_json_path(f"DRIFTS-{table_name}-{tolerance}-w-tolerance.json")
-            )
+            plot_drifts(join_with_json_path(f"DRIFTS-{table_name}-{tolerance}-w-tolerance.json"), tolerance)
 
     for tolerance in None, 6:
         plot_hits_per_buckets(

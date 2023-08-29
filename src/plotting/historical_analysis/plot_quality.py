@@ -13,6 +13,7 @@ from plotting.plotting_utils import STYLE, COLORS, get_year_ticks, latexify
 
 
 def plot_quality(input_path: Path) -> None:
+    """Plot the consistency of header values within each proximity set."""
     with open(input_path) as file:
         results = json.load(file)
 
@@ -36,7 +37,7 @@ def plot_quality(input_path: Path) -> None:
         axes.set_xticks(*get_year_ticks(), rotation=0)
         axes.xaxis.get_minor_ticks()[0].set_visible(False)
         axes.xaxis.get_minor_ticks()[-1].set_visible(False)
-        axes.set_ylabel(f"Number of {'syntactic' if 'normalize' in input_path.name else 'semantic'} differences")
+        axes.set_ylabel(f"Number of {'syntac' if 'normalize' in input_path.name else 'seman'}tically different values")
         axes.set_yticks(range(max(4, statistics['Maximum'].max() + 1)))
         axes.yaxis.set_major_locator(MaxNLocator(integer=True, steps=[1], min_n_ticks=4))
         axes.legend(ncol=3, loc='upper center', bbox_to_anchor=(0.5, 1.1))
