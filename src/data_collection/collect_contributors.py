@@ -66,7 +66,9 @@ def crawl_metadata(source: str,
     except JSONDecodeError as error:
         raise CrawlingException(response.url) from error
 
-    return Json(data), Json(data.get('metadata')), data.get('metadata', {}).get('contributor')
+    return (Json(data),
+            Json(data.get('metadata', '<MISSING-METADATA>')),
+            data.get('metadata', {'metadata': '<MISSING-METADATA>'}).get('contributor', '<MISSING-CONTRIBUTOR>'))
 
 
 def worker(jobs: list[MetadataJob], table_name=METADATA_TABLE_NAME) -> None:
