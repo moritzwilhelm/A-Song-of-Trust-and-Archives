@@ -1,9 +1,8 @@
 from argparse import ArgumentParser, Namespace as Arguments
-from datetime import datetime
+from datetime import datetime, UTC
 from multiprocessing import Process, pool, get_context
 from subprocess import run
 
-from pytz import utc
 from requests import get
 
 from configs.crawling import TIMESTAMPS, TODAY, SOCKS_PROXIES
@@ -100,7 +99,7 @@ def crawl_daily_web_archive_worker(timestamps: list[datetime], proxies: dict[str
     run_archive_jobs(jobs)
 
 
-START_TIMESTAMP = datetime(2023, 7, 16, 12, tzinfo=utc)
+START_TIMESTAMP = datetime(2023, 7, 16, 12, tzinfo=UTC)
 
 
 def start_collect_daily_archive_data(configs: list[dict[str, str] | None]) -> None:

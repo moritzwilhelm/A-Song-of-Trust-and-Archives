@@ -1,5 +1,5 @@
-setuptools~=68.0.0
-wheel~=0.41.1
+setuptools==68.1.2
+wheel==0.41.2
 
 # DATABASE
 psycopg2-binary~=2.9.7
@@ -7,7 +7,6 @@ psycopg2-binary~=2.9.7
 # HTTP(S) REQUESTS & ANALYSIS
 requests~=2.31.0
 pysocks~=1.7.1
-pytz~=2023.3
 python-dateutil~=2.8.2
 urllib3~=2.0.4
 tldextract~=3.4.4

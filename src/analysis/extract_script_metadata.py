@@ -14,7 +14,7 @@ from data_collection.collect_archive_proximity_sets import TABLE_NAME as PROXIMI
 from data_collection.collect_live_data import TABLE_NAME as LIVE_TABLE_NAME
 from data_collection.crawling import partition_jobs
 
-WORKERS = 64
+WORKERS = 128
 
 METADATA_TABLE_NAME = 'HTML_SCRIPT_METADATA'
 

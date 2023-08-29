@@ -1,9 +1,8 @@
 import json
 from collections import defaultdict
-from datetime import datetime, date as date_type, timedelta
+from datetime import datetime, date as date_type, timedelta, UTC
 from pathlib import Path
 
-from pytz import utc
 from tqdm import tqdm
 
 from analysis.analysis_utils import parse_archived_headers
@@ -27,7 +26,7 @@ def get_proximity_set_members(n: int = 10):
             WHERE error IS NULL
         """)
         for tid, timestamp, candidates in cursor.fetchall():
-            result[tid, timestamp] = [datetime.strptime(ts, INTERNET_ARCHIVE_TIMESTAMP_FORMAT).replace(tzinfo=utc)
+            result[tid, timestamp] = [datetime.strptime(ts, INTERNET_ARCHIVE_TIMESTAMP_FORMAT).replace(tzinfo=UTC)
                                       for ts in candidates[:n]]
 
     return result

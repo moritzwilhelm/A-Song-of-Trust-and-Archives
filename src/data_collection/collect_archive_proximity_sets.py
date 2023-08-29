@@ -1,5 +1,5 @@
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from heapq import nsmallest
 from itertools import chain
 from multiprocessing import Pool
@@ -9,7 +9,6 @@ from typing import NamedTuple, Generator
 
 import requests
 from psycopg2.extras import Json
-from pytz import utc
 from requests import Session, JSONDecodeError
 
 from configs.crawling import NUMBER_URLS, INTERNET_ARCHIVE_TIMESTAMP_FORMAT, TIMESTAMPS, INTERNET_ARCHIVE_URL
@@ -103,7 +102,7 @@ def find_candidates(url: str,
         return []
 
     timestamps = set(chain.from_iterable(timestamps[1:]))
-    timestamps = [datetime.strptime(ts, INTERNET_ARCHIVE_TIMESTAMP_FORMAT).replace(tzinfo=utc) for ts in timestamps]
+    timestamps = [datetime.strptime(ts, INTERNET_ARCHIVE_TIMESTAMP_FORMAT).replace(tzinfo=UTC) for ts in timestamps]
 
     for base_timestamp in proximity_set_window_centers(timestamp):
         left = max(left_limit, base_timestamp - timedelta(days=3, hours=12))
@@ -182,7 +181,7 @@ def crawl_proximity_sets(timestamps: list[datetime] = TIMESTAMPS,
                 for tid, domain, url, candidates in cursor.fetchall()
                 for timestamp_str in candidates[:n]
                 if tid not in worked_jobs[
-                    ts := datetime.strptime(timestamp_str, INTERNET_ARCHIVE_TIMESTAMP_FORMAT).replace(tzinfo=utc)
+                    ts := datetime.strptime(timestamp_str, INTERNET_ARCHIVE_TIMESTAMP_FORMAT).replace(tzinfo=UTC)
                 ]
             ]
 

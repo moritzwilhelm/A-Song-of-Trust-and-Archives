@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, date as date_type
+from datetime import datetime, date as date_type, UTC
 from datetime import timedelta
 from pathlib import Path
 
@@ -7,7 +7,6 @@ import pandas as pd
 from matplotlib import pyplot as plt
 from matplotlib.ticker import PercentFormatter
 from pandas import DataFrame
-from pytz import utc
 
 from analysis.live.analyze_stability import ARCHIVE_TABLE_NAME
 from analysis.live.stability_enums import Status
@@ -155,8 +154,8 @@ def main():
 
     plot_snapshot_stability(
         join_with_json_path('STABILITY-archive_data_20230501-snapshots-2023-05-01.json'),
-        start=datetime(2023, 5, 1, 12, tzinfo=utc),
-        end=datetime(2023, 5, 1, 12, tzinfo=utc)
+        start=datetime(2023, 5, 1, 12, tzinfo=UTC),
+        end=datetime(2023, 5, 1, 12, tzinfo=UTC)
     )
 
     plot_drifts(join_with_json_path(f"REMOVE-DRIFTS-{ARCHIVE_TABLE_NAME}.json"))
