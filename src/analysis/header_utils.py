@@ -97,6 +97,10 @@ def classify_xfo(value: str) -> XFO:
             return XFO.UNSAFE
 
 
+def is_secure_xfo(value: str) -> bool:
+    return normalize_xfo(value) is not XFO.UNSAFE
+
+
 # ----------------------------------------------------------------------------
 # Content-Security-Policy
 
@@ -199,6 +203,18 @@ def classify_csp(value: str, origin: Origin) -> tuple[CspFA, CspXSS, CspTLS]:
     return res['FA'], res['XSS'], res['TLS']
 
 
+def is_secure_csp_fa(value: str, origin: Origin) -> bool:
+    return classify_csp(value, origin)[0] is not CspFA.UNSAFE
+
+
+def is_secure_csp_xss(value: str, origin: Origin) -> bool:
+    return classify_csp(value, origin)[1] is not CspXSS.UNSAFE
+
+
+def is_secure_csp_tls(value: str, origin: Origin) -> bool:
+    return classify_csp(value, origin)[2] is not CspTLS.UNSAFE
+
+
 # ----------------------------------------------------------------------------
 # Strict-Transport-Security
 
@@ -214,7 +230,7 @@ def classify_hsts_age(max_age: int | None) -> HSTSAge:
         return HSTSAge.ABSENT
     elif max_age <= 0:
         return HSTSAge.DISABLED
-    elif max_age < 24 * 60 * 60 * 365:
+    elif max_age < 60 * 60 * 24 * 365:
         return HSTSAge.LOW
     else:
         return HSTSAge.BIG
@@ -248,6 +264,11 @@ def classify_hsts(value: str) -> tuple[HSTSAge, HSTSSub, HSTSPreload]:
             # includeSubDomains directive's presence is ignored when max-age is absent or zero
             HSTSSub(include_sub_domains and classified_max_age not in (HSTSAge.ABSENT, HSTSAge.DISABLED)),
             HSTSPreload(preload and include_sub_domains and classified_max_age is HSTSAge.BIG))
+
+
+def is_secure_hsts(value: str) -> bool:
+    max_age, include_sub_domains, preload = classify_hsts(value)
+    return max_age is HSTSAge.BIG and include_sub_domains is HSTSSub.ACTIVE
 
 
 # ----------------------------------------------------------------------------
@@ -296,6 +317,11 @@ def classify_referrer_policy(value: str) -> RP:
             return RP.STRICT_ORIGIN_WHEN_CROSS_ORIGIN
 
 
+def is_secure_referrer_policy(value: str) -> bool:
+    classified_value = classify_referrer_policy(value)
+    return classified_value not in (RP.UNSAFE_URL, RP.NO_REFERRER_WHEN_DOWNGRADE)
+
+
 # ----------------------------------------------------------------------------
 # Permissions-Policy
 
@@ -306,6 +332,10 @@ def normalize_permissions_policy(value: str) -> str:
 
 def classify_permissions_policy(value: str) -> str:
     return normalize_permissions_policy(value)
+
+
+def is_secure_permissions_policy(value: str) -> bool:
+    raise NotImplementedError
 
 
 # ----------------------------------------------------------------------------
@@ -324,6 +354,10 @@ def classify_coop(value: str) -> COOP:
             return COOP.SAME_ORIGIN_ALLOW_POPUPS
         case _:
             return COOP.UNSAFE_NONE
+
+
+def is_secure_coop(value: str) -> bool:
+    return classify_coop(value) is not COOP.UNSAFE_NONE
 
 
 # ----------------------------------------------------------------------------
@@ -345,6 +379,10 @@ def classify_corp(value: str) -> CORP:
             return CORP.CROSS_ORIGIN
 
 
+def is_secure_corp(value: str) -> bool:
+    return classify_corp(value) is not CORP.CROSS_ORIGIN
+
+
 # ----------------------------------------------------------------------------
 # Cross-Origin-Embedder-Policy
 
@@ -362,3 +400,7 @@ def classify_coep(value: str) -> COEP:
             return COEP.REQUIRE_CORP
         case _:
             return COEP.UNSAFE_NONE
+
+
+def is_secure_coep(value: str) -> bool:
+    return classify_coep(value) is not COEP.UNSAFE_NONE
