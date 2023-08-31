@@ -42,11 +42,14 @@ def setup_relaxed_hashes_table() -> None:
 def worker(content_hashes: list[HashJob]) -> None:
     with get_database_cursor(autocommit=True) as cursor:
         for content_hash, is_archived_response in content_hashes:
-            with open(STORAGE.joinpath(content_hash[0], content_hash[1], f"{content_hash}.gz"), 'rb') as file:
-                content = normalize_archived_content(file.read()) if is_archived_response else file.read()
+            try:
+                with open(STORAGE.joinpath(content_hash[0], content_hash[1], f"{content_hash}.gz"), 'rb') as file:
+                    content = normalize_archived_content(file.read()) if is_archived_response else file.read()
 
-            content = BeautifulSoup(content, 'html5lib').prettify().encode()
-            relaxed_hash = sha256(content).hexdigest()
+                content = BeautifulSoup(content, 'html5lib').prettify().encode()
+                relaxed_hash = sha256(content).hexdigest()
+            except FileNotFoundError:
+                relaxed_hash = content_hash
 
             cursor.execute(f"""
                 INSERT INTO {RELAXED_HASHES_TABLE_NAME} (content_hash, relaxed_hash)
