@@ -89,7 +89,7 @@ def prepare_jobs(table_name: str,
             SELECT t.content_hash, t.end_url
             FROM {table_name} t
             LEFT JOIN {METADATA_TABLE_NAME} m USING (content_hash)
-            WHERE t.content_hash IS NOT NULL AND t.status_code IS NOT NULL AND m.content_hash IS NULL
+            WHERE t.content_hash IS NOT NULL AND m.content_hash IS NULL
         """)
 
         return [AnalysisJob(*data, sources_filter=sources_filter) for data in cursor.fetchall()]
