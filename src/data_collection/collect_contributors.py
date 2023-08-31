@@ -68,7 +68,7 @@ def crawl_metadata(source: str,
 
     return (Json(data),
             Json(data.get('metadata', '<MISSING-METADATA>')),
-            data.get('metadata', {'metadata': '<MISSING-METADATA>'}).get('contributor', '<MISSING-CONTRIBUTOR>'))
+            data.get('metadata', {'contributor': '<MISSING-METADATA>'}).get('contributor', '<MISSING-CONTRIBUTOR>'))
 
 
 def worker(jobs: list[MetadataJob], table_name=METADATA_TABLE_NAME) -> None:

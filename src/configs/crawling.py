@@ -1,16 +1,18 @@
 import re
 from datetime import datetime, UTC
 
-WAYBACK_MACHINE_API_PATH = 'https://web.archive.org/web/'
-INTERNET_ARCHIVE_URL = 'https://web.archive.org/web/{timestamp}/{url}'
+# INTERNET ARCHIVE APIs
+INTERNET_ARCHIVE_URL = 'https://web.archive.org/web/{timestamp}id_/{url}'
 INTERNET_ARCHIVE_TIMESTAMP_FORMAT = '%Y%m%d%H%M%S'
 INTERNET_ARCHIVE_METADATA_API = 'https://archive.org/metadata/{source}'
 
+# CONFIGURATION CONSTANTS
 NUMBER_URLS = 20_000
-PREFIX = 'http://www.'
+URL_PREFIX = 'http://www.'
 USER_AGENT = \
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36'
 
+# TIMESTAMP CONSTANTS
 TODAY = datetime.now(UTC)
 FINAL_TIMESTAMP = datetime(2023, 4, 15, 12, tzinfo=UTC)
 TIMESTAMPS = tuple(
@@ -20,11 +22,18 @@ TIMESTAMPS = tuple(
     if (timestamp := datetime(year, month, 15, 12, tzinfo=UTC)) <= FINAL_TIMESTAMP
 )
 
-WAYBACK_HEADER_REGEX = re.compile(b"<head>.*<!-- End Wayback Rewrite JS Include -->\n", re.DOTALL)
-WAYBACK_COMMENTS_REGEX = re.compile(b"<!--\n     FILE ARCHIVED ON.*", re.DOTALL)
-WAYBACK_TOOLBAR_REGEX = re.compile(b"<!-- BEGIN WAYBACK TOOLBAR INSERT -->.*<!-- END WAYBACK TOOLBAR INSERT -->\n ",
-                                   re.DOTALL)
+# NORMALIZATION REGEXES
+WAYBACK_API_REGEX = re.compile(r"https?://web\.archive\.org/web/\d+/https?://.*")
 
+WAYBACK_HEADER_REGEX = re.compile(rb"<head>.*<!-- End Wayback Rewrite JS Include -->[^\n]*\n", re.DOTALL)
+WAYBACK_COMMENT_REGEX = re.compile(rb"<!--\n     FILE ARCHIVED ON.*", re.DOTALL)
+WAYBACK_TOOLBAR_REGEX = re.compile(
+    rb"<!-- BEGIN WAYBACK TOOLBAR INSERT -->.*<!-- END WAYBACK TOOLBAR INSERT -->[^\n]*\n", re.DOTALL)
+WAYBACK_SOURCE_REGEX = re.compile(rb"https?://web\.archive\.org/web/\d+[^/]*/(https?://[^)\"']*)")
+WAYBACK_PATH_RELATIVE_SOURCE_REGEX = re.compile(rb"//web\.archive\.org/web/\d+[^/]*/https?:(//[^)\"']*)")
+WAYBACK_RELATIVE_SOURCE_REGEX = re.compile(rb"/web/\d+[^/]*/https?://[^/]*(/[^)\"']*)")
+
+# SOCKS PROXIES PORT MAPPING
 SOCKS_PROXIES = {
     '1221': 'maws@srv-r940-02.srv.cispa.saarland',
     '1222': 'maws@srv-r940-03.srv.cispa.saarland',

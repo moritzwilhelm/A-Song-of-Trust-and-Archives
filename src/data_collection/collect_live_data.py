@@ -20,7 +20,7 @@ class LiveJob(NamedTuple):
     url: str
 
 
-def worker(jobs: list[LiveJob], table_name=TABLE_NAME) -> None:
+def worker(jobs: list[LiveJob], table_name: str = TABLE_NAME) -> None:
     """Crawl all provided `urls` and store the responses in the database."""
     with get_database_cursor(autocommit=True) as cursor:
         for tranco_id, domain, url in jobs:

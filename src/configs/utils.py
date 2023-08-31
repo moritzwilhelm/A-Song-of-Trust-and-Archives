@@ -5,7 +5,7 @@ from itertools import islice
 from math import inf
 from pathlib import Path
 
-from configs.crawling import NUMBER_URLS, PREFIX
+from configs.crawling import NUMBER_URLS, URL_PREFIX
 
 PROJECT_ROOT = Path('<AUTOMATICALLY-REPLACED-DURING-INSTALL>')
 INSTALLED_PROJECT_ROOT = Path(__file__).parents[1].resolve()
@@ -38,7 +38,7 @@ def get_tranco_data(tranco_file: Path = get_absolute_tranco_file_path(),
     with open(tranco_file) as file:
         for line in islice(file, n):
             tranco_id, domain = line.strip().split(',')
-            data.append((int(tranco_id), domain, f"{PREFIX}{domain}/"))
+            data.append((int(tranco_id), domain, f"{URL_PREFIX}{domain}/"))
     return data
 
 

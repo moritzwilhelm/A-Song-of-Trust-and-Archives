@@ -17,8 +17,8 @@ from requests import Session, Response, ConnectionError, RequestException
 from tldextract import extract
 
 from configs.analysis import MEMENTO_HEADER
-from configs.crawling import USER_AGENT, TODAY, WAYBACK_HEADER_REGEX, WAYBACK_TOOLBAR_REGEX, WAYBACK_COMMENTS_REGEX, \
-    WAYBACK_MACHINE_API_PATH
+from configs.crawling import USER_AGENT, TODAY, WAYBACK_API_REGEX, WAYBACK_HEADER_REGEX, WAYBACK_TOOLBAR_REGEX, \
+    WAYBACK_COMMENT_REGEX, WAYBACK_SOURCE_REGEX, WAYBACK_RELATIVE_SOURCE_REGEX, WAYBACK_PATH_RELATIVE_SOURCE_REGEX
 from configs.database import STORAGE, get_database_cursor
 
 
@@ -89,11 +89,14 @@ def timeout(seconds: int) -> Generator[None, None, None]:
         signal.signal(signal.SIGALRM, signal.SIG_IGN)
 
 
-def remove_toolbar(content: bytes) -> bytes:
-    """Remove injected JS in <head>, toolbar in <body>, and comment after </html>."""
-    content = re.sub(WAYBACK_HEADER_REGEX, b'<head>', content)
+def normalize_archived_content(content: bytes) -> bytes:
+    """Remove injected JS in <head>, toolbar in <body>, comment after </html>, and resolve all Wayback Machine links."""
+    content = re.sub(WAYBACK_HEADER_REGEX, rb'<head>', content)
     content = re.sub(WAYBACK_TOOLBAR_REGEX, b'', content)
-    return re.sub(WAYBACK_COMMENTS_REGEX, b'', content)
+    content = re.sub(WAYBACK_COMMENT_REGEX, b'', content)
+    content = re.sub(WAYBACK_SOURCE_REGEX, rb'\1', content)
+    content = re.sub(WAYBACK_PATH_RELATIVE_SOURCE_REGEX, rb'\1', content)
+    return re.sub(WAYBACK_RELATIVE_SOURCE_REGEX, rb'\1', content)
 
 
 def store_on_disk(content: bytes) -> str:
@@ -166,7 +169,7 @@ def crawl(url: str,
 
     # store content on disk
     if store_content:
-        content = remove_toolbar(response.content) if url.startswith(WAYBACK_MACHINE_API_PATH) else response.content
+        content = normalize_archived_content(response.content) if re.match(WAYBACK_API_REGEX, url) else response.content
         content_hash = store_on_disk(content)
     else:
         content_hash = None

@@ -25,7 +25,7 @@ class ArchiveJob(NamedTuple):
     proxies: dict[str, str] | None = None
 
 
-def worker(jobs: list[ArchiveJob], table_name=TABLE_NAME) -> None:
+def worker(jobs: list[ArchiveJob], table_name: str = TABLE_NAME) -> None:
     """Crawl all provided `urls` and store the responses in the database."""
     with get_database_cursor(autocommit=True) as cursor:
         session = requests.Session()
