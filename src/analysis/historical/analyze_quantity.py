@@ -8,7 +8,7 @@ from analysis.analysis_utils import timedelta_to_days
 from configs.analysis import MEMENTO_HEADER
 from configs.crawling import TIMESTAMPS
 from configs.database import get_database_cursor
-from configs.random_sample_tranco import RANDOM_SAMPLING_TABLE_NAME
+from configs.files.random_sample_tranco import RANDOM_SAMPLING_TABLE_NAME
 from configs.utils import join_with_json_path, compute_tolerance_window
 from data_collection.collect_archive_data import TABLE_NAME
 

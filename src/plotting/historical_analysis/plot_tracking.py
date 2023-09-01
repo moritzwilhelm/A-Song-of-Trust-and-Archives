@@ -7,7 +7,7 @@ from matplotlib.ticker import MaxNLocator, PercentFormatter
 from pandas import DataFrame
 
 from configs.crawling import TIMESTAMPS
-from configs.utils import join_with_json_path, json_to_plots_path
+from configs.utils import join_with_json_path, join_with_plots_path, json_to_plots_path
 from data_collection.collect_archive_data import TABLE_NAME as ARCHIVE_TABLE_NAME
 from plotting.plotting_utils import COLORS, latexify, get_year_ticks, STYLE
 
@@ -74,7 +74,7 @@ def plot_domains_without_trackers(input_path: Path) -> None:
     for agg in 'Union', 'Intersection':
         data[agg] = [[results[tid][str(ts)][agg] for tid in results if str(ts) in results[tid]] for ts in TIMESTAMPS]
         pivot = data.explode(agg).reset_index().pivot(columns='index', values=agg)
-        data[agg] = pivot.applymap(lambda elem: elem == []).sum() / pivot.count()
+        data[agg] = pivot.map(lambda elem: elem == []).sum() / pivot.count()
 
     axes = data.plot(style=STYLE, color=COLORS, grid=True)
 
@@ -86,7 +86,7 @@ def plot_domains_without_trackers(input_path: Path) -> None:
     axes.yaxis.set_major_formatter(PercentFormatter(xmax=1))
     axes.legend(ncol=3, loc='upper center', bbox_to_anchor=(0.5, 1.1))
 
-    axes.figure.savefig(json_to_plots_path(input_path), bbox_inches='tight', dpi=300)
+    axes.figure.savefig(join_with_plots_path(f"NO-{input_path.stem}"), bbox_inches='tight', dpi=300)
 
     axes.figure.show()
     plt.close()

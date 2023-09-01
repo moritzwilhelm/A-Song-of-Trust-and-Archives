@@ -44,7 +44,7 @@ def build_set_count_table(file_path: Path) -> None:
     df['At least one fresh hit'] = data['Set size'].apply(lambda row: sum(set_size >= 1 for set_size in row))
     df['Has neighborhood'] = data['Set size'].apply(lambda row: sum(set_size >= 2 for set_size in row))
     df['Has neighborhood'] = df.apply(
-        lambda row: f"{row['Has neighborhood']} ({row['Has neighborhood'] / row['At least one fresh hit'] * 100:.2f})",
+        lambda row: f"{row['Has neighborhood']} ({row['Has neighborhood'] / row['At least one fresh hit'] * 100:.2f}\%)",
         axis=1
     )
     print(df.to_latex())
@@ -53,7 +53,7 @@ def build_set_count_table(file_path: Path) -> None:
     for i in range(2, 11):
         df[f"Set size >= {i}"] = data['Set size'].apply(lambda row: sum(set_size >= i for set_size in row))
         df[f"Set size >= {i}"] = df.apply(
-            lambda row: f"{row[f'Set size >= {i}']} ({row[f'Set size >= {i}'] / row['Set size >= 1'] * 100:.2f})",
+            lambda row: f"{row[f'Set size >= {i}']} ({row[f'Set size >= {i}'] / row['Set size >= 1'] * 100:.2f}\%)",
             axis=1
         )
 

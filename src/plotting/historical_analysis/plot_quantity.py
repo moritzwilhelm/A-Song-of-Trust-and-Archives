@@ -43,7 +43,7 @@ def plot_drifts(input_path: Path, tolerance: int | None) -> None:
 
     axes = data.plot.box(
         grid=True,
-        ylim=(-7 * tolerance, 7 * tolerance) if tolerance is not None else None,
+        ylim=(-7 * tolerance - 1, 7 * tolerance + 1) if tolerance is not None else None,
         boxprops=dict(linestyle='-', linewidth=1, color=COLORS[0]),
         whiskerprops=dict(linestyle='dotted', linewidth=1, color=COLORS[1]),
         medianprops=dict(linestyle='-', linewidth=1, color=COLORS[2]),

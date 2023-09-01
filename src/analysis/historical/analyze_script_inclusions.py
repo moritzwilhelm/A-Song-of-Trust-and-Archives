@@ -5,7 +5,7 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-from analysis.extract_script_metadata import METADATA_TABLE_NAME
+from analysis.post_processing.extract_script_metadata import METADATA_TABLE_NAME
 from analysis.header_utils import HeadersDecoder
 from configs.analysis import MEMENTO_HEADER
 from configs.crawling import TIMESTAMPS

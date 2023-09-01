@@ -6,7 +6,7 @@ from pathlib import Path
 from tqdm import tqdm
 
 from analysis.analysis_utils import parse_archived_headers
-from analysis.extract_script_metadata import METADATA_TABLE_NAME
+from analysis.post_processing.extract_script_metadata import METADATA_TABLE_NAME
 from analysis.header_utils import Headers, HeadersEncoder, HeadersDecoder
 from configs.analysis import INTERNET_ARCHIVE_END_URL_REGEX, MEMENTO_HEADER
 from configs.crawling import INTERNET_ARCHIVE_TIMESTAMP_FORMAT, TIMESTAMPS
