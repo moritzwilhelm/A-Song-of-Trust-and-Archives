@@ -8,17 +8,18 @@ from tqdm import tqdm
 from analysis.analysis_utils import timedelta_to_days
 from analysis.header_utils import Headers, Origin, parse_origin, normalize_headers, classify_headers
 from analysis.live.stability_enums import Status
+from analysis.post_processing.extract_script_metadata import METADATA_TABLE_NAME
 from configs.analysis import RELEVANT_HEADERS, MEMENTO_HEADER
 from configs.database import get_database_cursor, get_min_timestamp, get_max_timestamp
-from configs.utils import join_with_json_path, get_tranco_data, date_range
+from configs.utils import join_with_json_path, get_tranco_data, date_range, get_tracking_domains
 from data_collection.collect_live_data import TABLE_NAME as LIVE_TABLE_NAME
 
 
-def analyze_live_data(targets: list[tuple[int, str, str]],
-                      start: date_type = get_min_timestamp(LIVE_TABLE_NAME).date(),
-                      end: date_type = get_max_timestamp(LIVE_TABLE_NAME).date(),
-                      aggregation_function: Callable[[Headers, Origin | None], Headers] = normalize_headers) -> None:
-    """Compute the stability of (crawled) live data from `start` date up to (inclusive) `end` date."""
+def analyze_live_headers(targets: list[tuple[int, str, str]],
+                         start: date_type = get_min_timestamp(LIVE_TABLE_NAME).date(),
+                         end: date_type = get_max_timestamp(LIVE_TABLE_NAME).date(),
+                         aggregation_function: Callable[[Headers, Origin | None], Headers] = normalize_headers) -> None:
+    """Compute the stability of (crawled) live security headers from `start` date up to (inclusive) `end` date."""
     assert start <= end
 
     live_data = {}
@@ -47,6 +48,55 @@ def analyze_live_data(targets: list[tuple[int, str, str]],
                     result[tid][header][str(date)] = result[tid][header].get(previous_timestamp, True)
 
     with open(join_with_json_path(f"STABILITY-{LIVE_TABLE_NAME}-{aggregation_function.__name__}.json"), 'w') as file:
+        json.dump(result, file, indent=2, sort_keys=True)
+
+
+def analyze_live_js_inclusions(targets: list[tuple[int, str, str]],
+                               start: date_type = get_min_timestamp(LIVE_TABLE_NAME).date(),
+                               end: date_type = get_max_timestamp(LIVE_TABLE_NAME).date()) -> None:
+    """Compute the stability of (crawled) live security headers from `start` date up to (inclusive) `end` date."""
+    assert start <= end
+
+    live_data = {}
+    with get_database_cursor() as cursor:
+        cursor.execute(f"""
+            SELECT tranco_id, timestamp::date, relevant_sources, hosts, sites
+            FROM {LIVE_TABLE_NAME} JOIN {METADATA_TABLE_NAME} USING (content_hash)
+            WHERE status_code=200 AND timestamp::date BETWEEN %s AND %s
+        """, (start, end))
+        for tid, date, *data in cursor.fetchall():
+            live_data[tid, date] = data
+
+    tracking_domains = get_tracking_domains()
+
+    result = defaultdict(lambda: defaultdict(dict))
+    for tid, _, _ in tqdm(targets):
+        seen_values = defaultdict(set)
+        for date in date_range(start, end):
+            if (tid, date) in live_data:
+                relevant_sources, hosts, sites = live_data[tid, date]
+                trackers = (set(host for host in hosts if host in tracking_domains) |
+                            set(site for site in sites if site in tracking_domains))
+                seen_values['urls'].add(tuple(relevant_sources))
+                result[tid]['urls'][str(date)] = len(seen_values['urls']) == 1
+                seen_values['hosts'].add(tuple(hosts))
+                result[tid]['hosts'][str(date)] = len(seen_values['hosts']) == 1
+                seen_values['sites'].add(tuple(sites))
+                result[tid]['sites'][str(date)] = len(seen_values['sites']) == 1
+                seen_values['trackers'].add(tuple(trackers))
+                result[tid]['trackers'][str(date)] = len(seen_values['trackers']) == 1
+                seen_values['uses-trackers'].add(len(trackers) == 0)
+                result[tid]['uses-trackers'][str(date)] = len(seen_values['uses-trackers']) == 1
+            else:
+                previous_timestamp = str(date - timedelta(days=1))
+                result[tid]['urls'][str(date)] = result[tid]['urls'].get(previous_timestamp, True)
+                result[tid]['hosts'][str(date)] = result[tid]['hosts'].get(previous_timestamp, True)
+                result[tid]['sites'][str(date)] = result[tid]['sites'].get(previous_timestamp, True)
+                result[tid]['urls'][str(date)] = result[tid]['urls'].get(previous_timestamp, True)
+                result[tid]['trackers'][str(date)] = result[tid]['trackers'].get(previous_timestamp, True)
+                result[tid]['uses-trackers'][str(date)] = result[tid]['uses-trackers'].get(previous_timestamp, True)
+
+    with open(join_with_json_path(f"STABILITY-{LIVE_TABLE_NAME}-TRACKING.json"), 'w') as file:
         json.dump(result, file, indent=2, sort_keys=True)
 
 
@@ -126,9 +176,11 @@ def analyze_archived_snapshots(targets: list[tuple[int, str, str]],
 
 def main():
     # LIVE DATA
-    analyze_live_data(get_tranco_data(), aggregation_function=normalize_headers)
+    analyze_live_headers(get_tranco_data(), aggregation_function=normalize_headers)
 
-    analyze_live_data(get_tranco_data(), aggregation_function=classify_headers)
+    analyze_live_headers(get_tranco_data(), aggregation_function=classify_headers)
+
+    analyze_live_js_inclusions(get_tranco_data())
 
     # ARCHIVE DATA
     analyze_archived_snapshots(
