@@ -33,7 +33,7 @@ def get_absolute_tranco_file_path() -> Path:
 
 def get_tranco_data(tranco_file: Path = get_absolute_tranco_file_path(),
                     n: int = NUMBER_URLS) -> list[tuple[int, str, str]]:
-    """Read `n` domains from the given `tranco_file` and expand them into full urls by prepending `PREFIX`."""
+    """Read `n` domains from the given `tranco_file` and expand them into full urls by prepending `URL_PREFIX`."""
     data = []
     with open(tranco_file) as file:
         for line in islice(file, n):
