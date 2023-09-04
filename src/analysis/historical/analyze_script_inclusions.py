@@ -5,8 +5,8 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-from analysis.post_processing.extract_script_metadata import METADATA_TABLE_NAME
 from analysis.header_utils import HeadersDecoder
+from analysis.post_processing.extract_script_metadata import METADATA_TABLE_NAME
 from configs.analysis import MEMENTO_HEADER
 from configs.crawling import TIMESTAMPS
 from configs.database import get_database_cursor
@@ -52,7 +52,7 @@ def analyze_inclusion_bounds(urls: list[tuple[int, str, str]], proximity_sets_pa
                 continue
 
             scripts = defaultdict(list)
-            for _, _, relevant_sources, hosts, sites in proximity_sets[str(tid)][str(timestamp)]:
+            for *_, relevant_sources, hosts, sites in proximity_sets[str(tid)][str(timestamp)]:
                 scripts['urls'].append(set(relevant_sources))
                 scripts['hosts'].append(set(hosts))
                 scripts['sites'].append(set(sites))
@@ -81,7 +81,7 @@ def analyze_trackers(urls: list[tuple[int, str, str]], proximity_sets_path: Path
                 continue
 
             trackers = []
-            for _, _, _, hosts, sites in proximity_sets[str(tid)][str(timestamp)]:
+            for *_, hosts, sites in proximity_sets[str(tid)][str(timestamp)]:
                 trackers.append(
                     set(host for host in hosts if host in tracking_domains) |
                     set(site for site in sites if site in tracking_domains)

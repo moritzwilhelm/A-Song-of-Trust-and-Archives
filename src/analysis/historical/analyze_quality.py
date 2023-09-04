@@ -23,7 +23,7 @@ def analyze_quality(urls: list[tuple[int, str, str]],
         for timestamp in TIMESTAMPS:
             seen_values = defaultdict(set)
             deploys = defaultdict(lambda: False)
-            for headers, end_url, *_ in proximity_sets[str(tid)][str(timestamp)]:
+            for _, headers, end_url, *_ in proximity_sets[str(tid)][str(timestamp)]:
                 aggregated_headers = aggregation_function(headers, parse_origin(end_url))
                 for header in RELEVANT_HEADERS:
                     seen_values[header].add(aggregated_headers[header])
