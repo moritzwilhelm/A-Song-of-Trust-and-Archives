@@ -78,6 +78,25 @@ def classify_headers(headers: Headers, origin: Origin | None = None) -> Headers:
     })
 
 
+def get_headers_security(headers: Headers, origin: Origin | None = None) -> Headers:
+    return Headers({
+        'X-Frame-Options': is_secure_xfo(headers.get('X-Frame-Options', '')),
+        'Content-Security-Policy-FA': is_secure_csp_fa(headers.get('Content-Security-Policy', ''), origin),
+        'Content-Security-Policy-XSS': is_secure_csp_xss(headers.get('Content-Security-Policy', ''), origin),
+        'Content-Security-Policy-TLS': is_secure_csp_tls(headers.get('Content-Security-Policy', ''), origin),
+        'Strict-Transport-Security': is_secure_hsts(headers.get('Strict-Transport-Security', '')),
+        'Referrer-Policy': is_secure_referrer_policy(headers.get('Referrer-Policy', '')),
+        # 'Permissions-Policy': is_secure_permissions_policy(headers.get('Permissions-Policy', '')),
+        'Cross-Origin-Opener-Policy': is_secure_coop(headers.get('Cross-Origin-Opener-Policy', '')),
+        'Cross-Origin-Resource-Policy': is_secure_corp(headers.get('Cross-Origin-Resource-Policy', '')),
+        'Cross-Origin-Embedder-Policy': is_secure_coep(headers.get('Cross-Origin-Embedder-Policy', ''))
+    })
+
+
+def get_headers_security_categories() -> tuple[str]:
+    return tuple(get_headers_security(Headers()).keys())
+
+
 # ----------------------------------------------------------------------------
 # X-Frame-Options
 
