@@ -1,6 +1,6 @@
 import json
 from collections import defaultdict
-from datetime import datetime, date as date_type, timedelta, UTC
+from datetime import datetime, timedelta, UTC
 from pathlib import Path
 
 from tqdm import tqdm
@@ -11,7 +11,7 @@ from analysis.post_processing.extract_script_metadata import METADATA_TABLE_NAME
 from configs.analysis import INTERNET_ARCHIVE_END_URL_REGEX, MEMENTO_HEADER, INTERNET_ARCHIVE_SOURCE_HEADER
 from configs.crawling import INTERNET_ARCHIVE_TIMESTAMP_FORMAT, TIMESTAMPS
 from configs.database import get_database_cursor
-from configs.utils import join_with_json_path, get_tranco_data, compute_tolerance_window
+from configs.utils import join_with_json_path, get_tranco_data
 from data_collection.collect_archive_proximity_sets import CANDIDATES_TABLE_NAME, \
     TABLE_NAME as PROXIMITY_SETS_TABLE_NAME
 from data_collection.collect_contributors import METADATA_TABLE_NAME as CONTRIBUTORS_TABLE_NAME
@@ -36,30 +36,29 @@ def get_proximity_set_members(n: int = 10):
 def build_proximity_sets(targets: list[tuple[int, str, str]], n: int = 10) -> None:
     """Build all (tranco_id, timestamp) proximity sets of size `n` for all `targets`."""
     proximity_set_members = get_proximity_set_members(n)
+    ps_members_data = {}
     with get_database_cursor() as cursor:
-        ps_members_data = {}
-        for timestamp in tqdm(TIMESTAMPS):
-            cursor.execute(f"""
-                SELECT tranco_id, timestamp, (headers->>%s)::TIMESTAMPTZ,
-                       headers, substring(end_url FROM %s), status_code, contributor, relevant_sources, hosts, sites
-                FROM {PROXIMITY_SETS_TABLE_NAME}
-                JOIN {SCRIPTS_TABLE_NAME} USING (content_hash)
-                JOIN {CONTRIBUTORS_TABLE_NAME} ON SPLIT_PART(headers->>%s, '/', 1)=source
-                WHERE (headers->>%s)::TIMESTAMPTZ BETWEEN %s AND %s
-            """, (MEMENTO_HEADER.lower(), INTERNET_ARCHIVE_END_URL_REGEX, INTERNET_ARCHIVE_SOURCE_HEADER.lower(),
-                  MEMENTO_HEADER.lower(), *compute_tolerance_window(timestamp, timedelta(weeks=6))))
-            for tid, request_timestamp, archived_timestamp, headers, *data in cursor.fetchall():
-                ps_members_data[tid, request_timestamp] = (archived_timestamp, parse_archived_headers(headers), *data)
+        cursor.execute(f"""
+            SELECT tranco_id, timestamp, (headers->>%s)::TIMESTAMPTZ,
+                   headers, substring(end_url FROM %s), status_code, contributor, relevant_sources, hosts, sites
+            FROM {PROXIMITY_SETS_TABLE_NAME}
+            JOIN {SCRIPTS_TABLE_NAME} USING (content_hash)
+            JOIN {CONTRIBUTORS_TABLE_NAME} ON SPLIT_PART(headers->>%s, '/', 1)=source
+            WHERE (headers->>%s)::TIMESTAMPTZ IS NOT NULL
+        """, (MEMENTO_HEADER.lower(), INTERNET_ARCHIVE_END_URL_REGEX, INTERNET_ARCHIVE_SOURCE_HEADER.lower(),
+              MEMENTO_HEADER.lower()))
+        for tid, timestamp, archived_timestamp, headers, *data in cursor.fetchall():
+            ps_members_data[tid, timestamp] = (archived_timestamp, parse_archived_headers(headers), *data)
 
-    def get_proximity_set(tranco_id: int, ts_date: date_type) -> list[tuple]:
-        """Build the proximity set for (tranco_id, ts_date) and drop duplicate members."""
+    def get_proximity_set(tranco_id: int, ts: datetime) -> list[tuple]:
+        """Build the proximity set for (tranco_id, ts) and drop duplicate members."""
         proximity_set = []
         seen_timestamps = set()
-        for timestamp in proximity_set_members[tranco_id, ts_date]:
-            if (tranco_id, timestamp) in ps_members_data:
-                archived_timestamp, *data = ps_members_data[tranco_id, timestamp]
-                if archived_timestamp not in seen_timestamps:
-                    proximity_set.append(tuple([str(archived_timestamp), *data]))
+        for member_timestamp in proximity_set_members[tranco_id, ts]:
+            if (tranco_id, member_timestamp) in ps_members_data:
+                archived_timestamp, *data = ps_members_data[tranco_id, member_timestamp]
+                if abs(ts - archived_timestamp) <= timedelta(weeks=6) and archived_timestamp not in seen_timestamps:
+                    proximity_set.append(tuple((str(archived_timestamp), *data)))
                     seen_timestamps.add(archived_timestamp)
         return proximity_set
 
