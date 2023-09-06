@@ -43,7 +43,7 @@ def reset_failed_crawls(table_name: str, date: date_type = TODAY.date()) -> set[
     """Delete all crawling results whose status code is 429 or NULL and return the affected tranco ids."""
     with get_database_cursor(autocommit=True) as cursor:
         cursor.execute(f"""
-            DELETE FROM {table_name} WHERE crawl_datetime::date=%s AND (status_code IS NULL OR status_code=429)
+            DELETE FROM {table_name} WHERE crawl_datetime::date=%s AND status_code!=200
         """, (date,))
 
         cursor.execute(f"SELECT DISTINCT tranco_id FROM {table_name} WHERE crawl_datetime::date=%s", (date,))
