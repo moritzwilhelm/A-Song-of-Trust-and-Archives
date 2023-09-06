@@ -117,7 +117,7 @@ def classify_xfo(value: str) -> XFO:
 
 
 def is_secure_xfo(value: str) -> bool:
-    return normalize_xfo(value) is not XFO.UNSAFE
+    return classify_xfo(value) is not XFO.UNSAFE
 
 
 # ----------------------------------------------------------------------------
