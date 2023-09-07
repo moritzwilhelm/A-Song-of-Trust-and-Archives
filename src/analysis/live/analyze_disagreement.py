@@ -1,6 +1,6 @@
+import json
 from collections import defaultdict
 from datetime import datetime, timedelta, UTC
-from pprint import pprint
 
 from tqdm import tqdm
 
@@ -8,7 +8,7 @@ from analysis.analysis_utils import parse_archived_headers
 from analysis.header_utils import parse_origin, normalize_headers, classify_headers, Headers
 from configs.analysis import RELEVANT_HEADERS, INTERNET_ARCHIVE_END_URL_REGEX, MEMENTO_HEADER
 from configs.database import get_database_cursor
-from configs.utils import get_tranco_data
+from configs.utils import get_tranco_data, join_with_json_path
 from data_collection.collect_live_data import TABLE_NAME as LIVE_TABLE_NAME
 
 TIMESTAMP = datetime(2023, 9, 1, 12, tzinfo=UTC)
@@ -52,46 +52,48 @@ def analyze(targets: list[tuple[int, str, str]]) -> None:
         cursor.execute(f"""
             SELECT l.start_url, l.end_url, l.status_code, l.headers,
                    (a.headers->>%s)::TIMESTAMPTZ, substring(a.end_url FROM %s), a.status_code, a.headers
-            FROM {LIVE_TABLE_NAME} l JOIN {ARCHIVE_TABLE_NAME} a USING (domain, status_code)
-            WHERE l.status_code IS NOT NULL AND a.->>%s IS NOT NULL AND l.timestamp::date=%s AND a.timestamp::date=%s
+            FROM {LIVE_TABLE_NAME} l JOIN {ARCHIVE_TABLE_NAME} a USING (tranco_id, status_code)
+            WHERE l.status_code IS NOT NULL AND a.headers->>%s IS NOT NULL AND l.timestamp::date=%s AND a.timestamp::date=%s
         """, (MEMENTO_HEADER.lower(), INTERNET_ARCHIVE_END_URL_REGEX,
               MEMENTO_HEADER.lower(), TIMESTAMP.date(), TIMESTAMP.date()))
         for start_url, *data, archive_headers in cursor.fetchall():
             analysis_data[start_url] = (*data, parse_archived_headers(archive_headers))
 
-    results = defaultdict(set)
+    result = defaultdict(set)
     for tid, domain, url in tqdm(targets):
         if url not in analysis_data:
-            results['FAIL'].add(url)
+            result['FAIL'].add(url)
             continue
 
         (live_end_url, live_status_code, live_headers,
          memento_datetime, archived_end_url, archived_status_code, archived_headers) = analysis_data[url]
 
         if abs(memento_datetime - TIMESTAMP) > timedelta(1):
-            results['OUTDATED'].add(url)
+            result['OUTDATED'].add(url)
             continue
 
-        results['SUCCESS'].add(url)
+        result['SUCCESS'].add(url)
 
         if live_status_code != archived_status_code:
-            results['DIFFERENT_STATUS_CODE'].add(url)
+            result['DIFFERENT_STATUS_CODE'].add(url)
 
         if live_end_url != archived_end_url:
-            results['DIFFERENT_END_URL'].add(url)
+            result['DIFFERENT_END_URL'].add(url)
 
         if parse_origin(live_end_url) != parse_origin(archived_end_url):
-            results['DIFFERENT_END_URL_ORIGIN'].add(url)
+            result['DIFFERENT_END_URL_ORIGIN'].add(url)
 
         for header in RELEVANT_HEADERS:
             if archived_headers.get(header) or live_headers.get(header):
-                results[f"USES_{header}"].add(url)
-                results['USES_ANY'].add(url)
+                result[f"USES_{header}"].add(url)
+                result['USES_ANY'].add(url)
 
-        merge_analysis_results(results, compare_security_headers(url, live_headers, archived_headers))
+        merge_analysis_results(result, compare_security_headers(url, live_headers, archived_headers))
 
-    results = {key: len(value) for key, value in results.items()}
-    pprint(results)
+    result = {key: len(value) for key, value in result.items()}
+
+    with open(join_with_json_path(f"DISAGREEMENT-{LIVE_TABLE_NAME}-{ARCHIVE_TABLE_NAME}.json"), 'w') as file:
+        json.dump(result, file, indent=2, sort_keys=True)
 
 
 def main():
