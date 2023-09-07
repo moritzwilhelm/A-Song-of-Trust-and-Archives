@@ -49,7 +49,7 @@ def compute_information_gain(training_data: DataFrame, target_values: Series) ->
 
 
 def attribute_differences(urls: list[tuple[int, str, str]], proximity_sets_path: Path) -> None:
-    """Compute the consistency of header values within each proximity set."""
+    """Detect the best features to reduce the Gini impurity per proximity set."""
     with open(proximity_sets_path) as file:
         proximity_sets = json.load(file, cls=HeadersDecoder)
 
@@ -72,9 +72,6 @@ def attribute_differences(urls: list[tuple[int, str, str]], proximity_sets_path:
                 training_data[f"archival time::<= {archived_timestamp}"] = df['archived_timestamp'].apply(
                     lambda row: row <= archived_timestamp
                 )
-
-            training_data['status_code_ok'] = training_data['status_code'].apply(lambda row: 200 <= row < 300)
-            training_data['status_code_error'] = training_data['status_code'].apply(lambda row: row >= 400)
 
             training_data = encode_non_numeric_features(training_data, ['contributor', 'origin'])
 
