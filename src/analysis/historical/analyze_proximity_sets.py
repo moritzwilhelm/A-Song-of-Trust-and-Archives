@@ -1,5 +1,5 @@
 import json
-from collections import defaultdict
+from collections import defaultdict, Counter
 from datetime import datetime, timedelta, UTC
 from pathlib import Path
 
@@ -85,9 +85,26 @@ def analyze_proximity_sets(proximity_sets_filepath: Path):
         json.dump(result, file, indent=2, sort_keys=True)
 
 
+def analyze_contributors(proximity_sets_filepath: Path):
+    """Compute the number of snapshots per contributor, considering all proximity sets of size >= 2."""
+    with open(proximity_sets_filepath) as file:
+        data = json.load(file, cls=HeadersDecoder)
+
+    result = Counter()
+    for tid in tqdm(data):
+        for timestamp, proximity_set in data[tid].items():
+            if len(proximity_set) >= 2:
+                for _, _, _, _, contributor, _, _, _ in proximity_set:
+                    result[contributor] += 1
+
+    with open(proximity_sets_filepath.with_name(f"CONTRIBUTORS-{proximity_sets_filepath.name}"), 'w') as file:
+        json.dump(result, file, indent=2, sort_keys=True)
+
+
 def main():
     build_proximity_sets(get_tranco_data())
     analyze_proximity_sets(join_with_json_path(f"PROXIMITY-SETS-{10}.json"))
+    analyze_contributors(join_with_json_path(f"PROXIMITY-SETS-{10}.json"))
 
 
 if __name__ == '__main__':
