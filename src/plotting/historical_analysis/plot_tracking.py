@@ -1,10 +1,9 @@
 import json
 from pathlib import Path
 
-import pandas as pd
 from matplotlib import pyplot as plt
 from matplotlib.ticker import MaxNLocator, PercentFormatter
-from pandas import DataFrame
+from pandas import DataFrame, read_json
 
 from configs.crawling import TIMESTAMPS
 from configs.utils import join_with_json_path, join_with_plots_path, json_to_plots_path
@@ -15,7 +14,7 @@ from plotting.plotting_utils import COLORS, latexify, get_year_ticks, STYLE
 def plot_script_inclusions(input_path: Path):
     """Plot the average number of script inclusions for all fresh hits per timestamp."""
     with open(input_path) as file:
-        data = pd.read_json(file, orient='index')
+        data = read_json(file, orient='index')
 
     for column in data.columns:
         data[column] = data.explode(column).reset_index().pivot(columns='index', values=column).mean(axis=0)

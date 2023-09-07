@@ -2,10 +2,9 @@ import json
 from os.path import commonprefix
 from pathlib import Path
 
-import pandas as pd
 from matplotlib import pyplot as plt
 from matplotlib.ticker import PercentFormatter
-from pandas import DataFrame
+from pandas import DataFrame, read_json, concat
 
 from configs.crawling import NUMBER_URLS, TIMESTAMPS
 from configs.files.random_sample_tranco import RANDOM_SAMPLING_TABLE_NAME
@@ -39,7 +38,7 @@ def plot_hits(hits_input_path: Path, fresh_hits_input_path: Path) -> None:
 def plot_drifts(input_path: Path, tolerance: int | None) -> None:
     """Plot the temporal drifts between archived date and requested date."""
     with open(input_path) as file:
-        data = pd.read_json(file, orient='index').transpose()
+        data = read_json(file, orient='index').transpose()
 
     axes = data.plot.box(
         grid=True,
@@ -66,8 +65,8 @@ def plot_drifts(input_path: Path, tolerance: int | None) -> None:
 def plot_hits_per_buckets(input_path: Path):
     """Plot the number of archive hits per 100k bucket."""
     with open(input_path) as file:
-        data = pd.read_json(file, orient='index')
-        data = pd.concat([data, pd.DataFrame(index=data.index[:4 - len(TIMESTAMPS) % 4])])
+        data = read_json(file, orient='index')
+        data = concat([data, DataFrame(index=data.index[:4 - len(TIMESTAMPS) % 4])])
 
     for i in range(0, len(data), 8):
         axes = data.iloc[i:i + 8].plot.bar(color=COLORS, grid=True, ylim=(0, NUMBER_URLS // 10))
@@ -97,9 +96,7 @@ def main():
             plot_drifts(join_with_json_path(f"DRIFTS-{table_name}-{tolerance}-w-tolerance.json"), tolerance)
 
     for tolerance in None, 6:
-        plot_hits_per_buckets(
-            join_with_json_path(f"BUCKETS-{RANDOM_SAMPLING_TABLE_NAME}-{tolerance}-w-tolerance.json")
-        )
+        plot_hits_per_buckets(join_with_json_path(f"BUCKETS-{RANDOM_SAMPLING_TABLE_NAME}-{tolerance}-w-tolerance.json"))
 
 
 if __name__ == '__main__':

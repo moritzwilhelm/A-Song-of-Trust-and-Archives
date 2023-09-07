@@ -1,8 +1,7 @@
 from pathlib import Path
 
-import pandas as pd
 from matplotlib import pyplot as plt
-from pandas import DataFrame
+from pandas import DataFrame, read_json
 
 from configs.utils import join_with_json_path, json_to_plots_path
 from plotting.plotting_utils import COLORS, get_year_ticks, latexify
@@ -11,7 +10,7 @@ from plotting.plotting_utils import COLORS, get_year_ticks, latexify
 def plot_set_size(file_path: Path) -> None:
     """Plot the computed proximity set statistics."""
     with open(file_path) as file:
-        data = pd.read_json(file, orient='index')
+        data = read_json(file, orient='index')
 
     data['Set size'] = data['Set size'].apply(lambda row: [set_size for set_size in row if set_size > 1])
 
@@ -38,7 +37,7 @@ def plot_set_size(file_path: Path) -> None:
 def build_set_count_table(file_path: Path) -> None:
     """Build a latex table about proximity set statistics."""
     with open(file_path) as file:
-        data = pd.read_json(file, orient='index')
+        data = read_json(file, orient='index')
 
     df = DataFrame()
     df['At least one fresh hit'] = data['Set size'].apply(lambda row: sum(set_size >= 1 for set_size in row))
