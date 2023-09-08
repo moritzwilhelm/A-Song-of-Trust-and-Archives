@@ -7,7 +7,7 @@ from tqdm import tqdm
 
 from analysis.header_utils import Headers, HeadersDecoder, Origin, parse_origin, normalize_headers, classify_headers, \
     get_headers_security
-from configs.analysis import RELEVANT_HEADERS
+from configs.analysis import SECURITY_MECHANISM_HEADERS
 from configs.crawling import TIMESTAMPS
 from configs.utils import join_with_json_path, get_tranco_data
 
@@ -26,14 +26,14 @@ def analyze_quality(urls: list[tuple[int, str, str]],
             deploys = defaultdict(lambda: False)
             for _, headers, end_url, *_ in proximity_sets[str(tid)][str(timestamp)]:
                 aggregated_headers = aggregation_function(headers, parse_origin(end_url))
-                for header in RELEVANT_HEADERS:
-                    seen_values[header].add(aggregated_headers[header])
+                for security_mechanism, header in SECURITY_MECHANISM_HEADERS.items():
+                    seen_values[security_mechanism].add(aggregated_headers[security_mechanism])
                     deploys[header] |= header in headers
 
-            for header in RELEVANT_HEADERS:
-                result[tid][header][str(timestamp)] = (
+            for security_mechanism, header in SECURITY_MECHANISM_HEADERS.items():
+                result[tid][security_mechanism][str(timestamp)] = (
                     deploys[header],
-                    len(seen_values[header]),
+                    len(seen_values[security_mechanism]),
                     len(proximity_sets[str(tid)][str(timestamp)])
                 )
 
