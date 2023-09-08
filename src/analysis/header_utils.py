@@ -95,7 +95,7 @@ def classify_headers(headers: Headers, origin: Origin | None = None) -> Headers:
         'Content-Security-Policy': classify_csp(headers.get('Content-Security-Policy', ''), origin),
         'Strict-Transport-Security': classify_hsts(headers.get('Strict-Transport-Security', '')),
         'Referrer-Policy': classify_referrer_policy(headers.get('Referrer-Policy', '')),
-        'Permissions-Policy': classify_permissions_policy(headers.get('Permissions-Policy', '')),
+        'Permissions-Policy': classify_permissions_policy(headers.get('Permissions-Policy', ''), origin),
         'Cross-Origin-Opener-Policy': classify_coop(headers.get('Cross-Origin-Opener-Policy', '')),
         'Cross-Origin-Resource-Policy': classify_corp(headers.get('Cross-Origin-Resource-Policy', '')),
         'Cross-Origin-Embedder-Policy': classify_coep(headers.get('Cross-Origin-Embedder-Policy', ''))
@@ -352,21 +352,25 @@ def classify_referrer_policy(value: str) -> RP:
 def normalize_permissions_policy(value: str) -> str:
     directives = []
     for directive in value.lower().split(','):
-        name, allowlist = directive.strip().split('=')
-        if (match := re.match(r"\((.*)\)", allowlist)) is not None:
-            content = set(match.group(1).strip().split())
-            allowlist = f"({' '.join(sorted(content))})"
-        directives.append(f"{name}={allowlist}")
+        match = re.match(r"([^=]+)=(\*|\((.*)\))", directive.strip())
+        if match is not None:
+            name, allowlist, content = match.groups()
+            if allowlist != '*':
+                content = set(content.strip().split())
+                allowlist = f"({' '.join(sorted(content))})"
+
+            directives.append(f"{name}={allowlist}")
     return ','.join(sorted(directives))
 
 
 # ASSUMPTION: All features have a default value of *
-def classify_permissions_policy(value: str, origin: Origin | None = None) -> str:
+def classify_permissions_policy(value: str, origin: Origin) -> str:
     directives = []
     for directive in value.lower().split(','):
-        name, allowlist = directive.strip().split('=')
-        if (match := re.match(r"\((.*)\)", allowlist)) is not None:
-            content = set(match.group(1).strip().split())
+        match = re.match(r"([^=]+)=\((.*)\)", directive.strip())
+        if match is not None:
+            name = match.group(1)
+            content = set(match.group(2).strip().split())
             if '*' in content:
                 continue
 
@@ -377,6 +381,7 @@ def classify_permissions_policy(value: str, origin: Origin | None = None) -> str
             if any(expression in content for expression in self_expressions):
                 content -= self_expressions
                 content.add('self')
+
             allowlist = f"({' '.join(sorted(content))})"
             directives.append(f"{name}={allowlist}")
     return ','.join(sorted(directives))
