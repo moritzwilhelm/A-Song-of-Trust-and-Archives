@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, UTC
 from tqdm import tqdm
 
 from analysis.analysis_utils import parse_archived_headers
-from analysis.header_utils import parse_origin, normalize_headers, classify_headers, Headers, get_headers_security
+from analysis.header_utils import parse_origin, normalize_headers, classify_headers, Headers
 from analysis.post_processing.extract_script_metadata import METADATA_TABLE_NAME
 from configs.analysis import RELEVANT_HEADERS, INTERNET_ARCHIVE_END_URL_REGEX, MEMENTO_HEADER
 from configs.database import get_database_cursor
@@ -27,9 +27,6 @@ def compare_security_headers(url: str, live_headers: Headers, archived_headers: 
     classified_live_headers = classify_headers(live_headers, origin)
     classified_archived_headers = classify_headers(archived_headers, origin)
 
-    binary_security_live_headers = get_headers_security(live_headers, origin)
-    binary_security_archived_headers = get_headers_security(archived_headers, origin)
-
     for header in RELEVANT_HEADERS:
         if normalized_archived_headers[header] != normalized_live_headers[header]:
             result[f"SYNTAX_DIFFERENCE_{header}"].add(url)
@@ -37,10 +34,6 @@ def compare_security_headers(url: str, live_headers: Headers, archived_headers: 
             if classified_archived_headers[header] != classified_live_headers[header]:
                 result[f"SEMANTICS_DIFFERENCE_{header}"].add(url)
                 result['SEMANTICS_DIFFERENCE'].add(url)
-
-                if binary_security_live_headers[header] != binary_security_archived_headers[header]:
-                    result[f"BINARY_DIFFERENCE_{header}"].add(url)
-                    result['BINARY_DIFFERENCE'].add(url)
 
     result['DIFFERENT' if url in result['SYNTAX_DIFFERENCE'] else 'EQUAL'].add(url)
 
@@ -97,7 +90,7 @@ def analyze_headers(targets: list[tuple[int, str, str]]) -> None:
 
     raw_output_path = join_with_json_path(f"DISAGREEMENT-HEADERS-{LIVE_TABLE_NAME}-{ARCHIVE_TABLE_NAME}.RAW.json")
     with open(raw_output_path, 'w') as file:
-        json.dump(result, file, indent=2, sort_keys=True)
+        json.dump(result, file, indent=2, sort_keys=True, default=list)
 
     result = {key: len(value) for key, value in result.items()}
     with open(join_with_json_path(f"DISAGREEMENT-HEADERS-{LIVE_TABLE_NAME}-{ARCHIVE_TABLE_NAME}.json"), 'w') as file:
@@ -147,12 +140,15 @@ def analyze_trackers(targets: list[tuple[int, str, str]]) -> None:
         if set(live_urls) | set(archived_urls):
             result['INCLUDES_SCRIPTS'].add(url)
 
-        if set(live_urls) != set(archived_urls):
-            result['DIFFERENT_URLS'].add(url)
-        if set(live_hosts) != set(archived_hosts):
-            result['DIFFERENT_HOSTS'].add(url)
-        if set(live_sites) != set(archived_sites):
-            result['DIFFERENT_SITES'].add(url)
+            if set(live_urls) != set(archived_urls):
+                result['DIFFERENT_URLS'].add(url)
+            if set(live_hosts) != set(archived_hosts):
+                result['DIFFERENT_HOSTS'].add(url)
+            if set(live_sites) != set(archived_sites):
+                result['DIFFERENT_SITES'].add(url)
+
+            if bool(live_urls) ^ bool(archived_urls):
+                result['SCRIPTS_INCLUSION_EITHER_MISSING'].add(url)
 
         live_trackers = (set(host for host in live_hosts if host in tracking_domains) |
                          set(site for site in live_sites if site in tracking_domains))
@@ -161,17 +157,16 @@ def analyze_trackers(targets: list[tuple[int, str, str]]) -> None:
 
         if live_trackers | archived_trackers:
             result['INCLUDES_TRACKERS'].add(url)
+
             if live_trackers != archived_trackers:
                 result['DIFFERENT_TRACKERS'].add(url)
 
             if bool(live_trackers) ^ bool(archived_trackers):
-                result['DIFFERENT_TRACKER_INCLUSION'].add(url)
-            elif live_trackers != archived_trackers:
-                result['DIFFERENT_TRACKERS_NONE_MISSING'].add(url)
+                result['TRACKER_INCLUSION_EITHER_MISSING'].add(url)
 
     raw_output_path = join_with_json_path(f"DISAGREEMENT-TRACKERS-{LIVE_TABLE_NAME}-{ARCHIVE_TABLE_NAME}.RAW.json")
     with open(raw_output_path, 'w') as file:
-        json.dump(result, file, indent=2, sort_keys=True)
+        json.dump(result, file, indent=2, sort_keys=True, default=list)
 
     result = {key: len(value) for key, value in result.items()}
     with open(join_with_json_path(f"DISAGREEMENT-TRACKERS-{LIVE_TABLE_NAME}-{ARCHIVE_TABLE_NAME}.json"), 'w') as file:
