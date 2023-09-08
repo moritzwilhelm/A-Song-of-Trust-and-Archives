@@ -76,22 +76,20 @@ def analyze_live_js_inclusions(targets: list[tuple[int, str, str]],
         includes_trackers = False
         for date in date_range(start, end):
             if (tid, date) in live_data:
-                relevant_sources, hosts, sites = live_data[tid, date]
+                relevant_sources, hosts, sites = map(tuple, live_data[tid, date])
                 includes_scripts |= len(relevant_sources) > 0
-                seen_values['urls'].add(tuple(relevant_sources))
+                seen_values['urls'].add(relevant_sources)
                 result[tid]['urls'][str(date)] = len(seen_values['urls']) == 1
-                seen_values['hosts'].add(tuple(hosts))
+                seen_values['hosts'].add(hosts)
                 result[tid]['hosts'][str(date)] = len(seen_values['hosts']) == 1
-                seen_values['sites'].add(tuple(sites))
+                seen_values['sites'].add(sites)
                 result[tid]['sites'][str(date)] = len(seen_values['sites']) == 1
 
-                trackers = sorted(set(host for host in hosts if host in tracking_domains) |
-                                  set(site for site in sites if site in tracking_domains))
+                trackers = tuple(sorted(set(host for host in hosts if host in tracking_domains) |
+                                        set(site for site in sites if site in tracking_domains)))
                 includes_trackers |= len(trackers) > 0
-                seen_values['trackers'].add(tuple(trackers))
+                seen_values['trackers'].add(trackers)
                 result[tid]['trackers'][str(date)] = len(seen_values['trackers']) == 1
-                seen_values['uses trackers'].add(len(trackers) == 0)
-                result[tid]['uses trackers'][str(date)] = len(seen_values['uses trackers']) == 1
             else:
                 previous_timestamp = str(date - timedelta(days=1))
                 result[tid]['urls'][str(date)] = result[tid]['urls'].get(previous_timestamp, True)
@@ -99,7 +97,6 @@ def analyze_live_js_inclusions(targets: list[tuple[int, str, str]],
                 result[tid]['sites'][str(date)] = result[tid]['sites'].get(previous_timestamp, True)
                 result[tid]['urls'][str(date)] = result[tid]['urls'].get(previous_timestamp, True)
                 result[tid]['trackers'][str(date)] = result[tid]['trackers'].get(previous_timestamp, True)
-                result[tid]['uses trackers'][str(date)] = result[tid]['uses trackers'].get(previous_timestamp, True)
         result[tid]['INCLUDES_SCRIPTS'] = includes_scripts
         result[tid]['INCLUDES_TRACKERS'] = includes_trackers
 

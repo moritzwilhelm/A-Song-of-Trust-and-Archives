@@ -58,7 +58,7 @@ def build_proximity_sets(targets: list[tuple[int, str, str]], n: int = 10) -> No
             if (tranco_id, member_timestamp) in ps_members_data:
                 archived_timestamp, *data = ps_members_data[tranco_id, member_timestamp]
                 if abs(ts - archived_timestamp) <= timedelta(weeks=6) and archived_timestamp not in seen_timestamps:
-                    proximity_set.append(tuple((str(archived_timestamp), *data)))
+                    proximity_set.append((str(archived_timestamp), *data))
                     seen_timestamps.add(archived_timestamp)
         return proximity_set
 
