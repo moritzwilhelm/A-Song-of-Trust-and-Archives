@@ -7,11 +7,10 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.tree import DecisionTreeClassifier
 from tqdm import tqdm
 
-from analysis.header_utils import HeadersDecoder, parse_origin, get_headers_security, get_headers_security_categories
+from analysis.header_utils import HeadersDecoder, parse_origin, get_headers_security
+from configs.analysis import SECURITY_MECHANISM_HEADERS
 from configs.crawling import TIMESTAMPS
 from configs.utils import join_with_json_path, get_tranco_data
-
-CATEGORIES = get_headers_security_categories()
 
 
 def encode_non_numeric_features(df: DataFrame, features: list[str]) -> DataFrame:
@@ -53,7 +52,7 @@ def attribute_differences(urls: list[tuple[int, str, str]], proximity_sets_path:
     with open(proximity_sets_path) as file:
         proximity_sets = json.load(file, cls=HeadersDecoder)
 
-    result = {category: Counter() for category in CATEGORIES}
+    result = {security_mechanism: Counter() for security_mechanism in SECURITY_MECHANISM_HEADERS}
     for tid, _, _ in tqdm(urls):
         for timestamp in TIMESTAMPS:
             proximity_set = proximity_sets[str(tid)][str(timestamp)]
@@ -75,8 +74,8 @@ def attribute_differences(urls: list[tuple[int, str, str]], proximity_sets_path:
 
             training_data = encode_non_numeric_features(training_data, ['contributor', 'origin'])
 
-            for category in CATEGORIES:
-                target_values = df['headers_security'].apply(lambda row: row[category])
+            for security_mechanism in SECURITY_MECHANISM_HEADERS:
+                target_values = df['headers_security'].apply(lambda row: row[security_mechanism])
 
                 if target_values.nunique() == 1:
                     continue
@@ -89,10 +88,10 @@ def attribute_differences(urls: list[tuple[int, str, str]], proximity_sets_path:
 
                     best_features = {f.split('::')[0] for f, v in information_gain.items() if v == max_information_gain}
                     for feature in best_features:
-                        result[category][feature] += 1
+                        result[security_mechanism][feature] += 1
                 else:
-                    result[category]['None'] += 1
-                result[category]['total'] += 1
+                    result[security_mechanism]['None'] += 1
+                result[security_mechanism]['total'] += 1
 
     with open(join_with_json_path(f"FEATURES-{proximity_sets_path.name}"), 'w') as file:
         json.dump(result, file, indent=2, sort_keys=True)
