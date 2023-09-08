@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, UTC
 from tqdm import tqdm
 
 from analysis.analysis_utils import parse_archived_headers
-from analysis.header_utils import parse_origin, normalize_headers, classify_headers, Headers
+from analysis.header_utils import parse_origin, normalize_headers, classify_headers, Headers, get_headers_security
 from analysis.post_processing.extract_script_metadata import METADATA_TABLE_NAME
 from configs.analysis import RELEVANT_HEADERS, INTERNET_ARCHIVE_END_URL_REGEX, MEMENTO_HEADER
 from configs.database import get_database_cursor
@@ -27,6 +27,9 @@ def compare_security_headers(url: str, live_headers: Headers, archived_headers: 
     classified_live_headers = classify_headers(live_headers, origin)
     classified_archived_headers = classify_headers(archived_headers, origin)
 
+    binary_security_live_headers = get_headers_security(live_headers, origin)
+    binary_security_archived_headers = get_headers_security(archived_headers, origin)
+
     for header in RELEVANT_HEADERS:
         if normalized_archived_headers[header] != normalized_live_headers[header]:
             result[f"SYNTAX_DIFFERENCE_{header}"].add(url)
@@ -34,6 +37,10 @@ def compare_security_headers(url: str, live_headers: Headers, archived_headers: 
             if classified_archived_headers[header] != classified_live_headers[header]:
                 result[f"SEMANTICS_DIFFERENCE_{header}"].add(url)
                 result['SEMANTICS_DIFFERENCE'].add(url)
+
+                if binary_security_live_headers[header] != binary_security_archived_headers[header]:
+                    result[f"BINARY_DIFFERENCE_{header}"].add(url)
+                    result['BINARY_DIFFERENCE'].add(url)
 
     result['DIFFERENT' if url in result['SYNTAX_DIFFERENCE'] else 'EQUAL'].add(url)
 
