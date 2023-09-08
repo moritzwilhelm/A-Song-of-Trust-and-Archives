@@ -7,7 +7,7 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.tree import DecisionTreeClassifier
 from tqdm import tqdm
 
-from analysis.header_utils import HeadersDecoder, parse_origin, get_headers_security
+from analysis.header_utils import HeadersDecoder, parse_origin, classify_headers
 from configs.analysis import SECURITY_MECHANISM_HEADERS
 from configs.crawling import TIMESTAMPS
 from configs.utils import join_with_json_path, get_tranco_data
@@ -63,7 +63,7 @@ def attribute_differences(urls: list[tuple[int, str, str]], proximity_sets_path:
                            columns=['archived_timestamp', 'headers', 'end_url', 'status_code', 'contributor',
                                     'relevant_sources', 'hosts', 'sites'])
             df['origin'] = df['end_url'].apply(parse_origin)
-            df['headers_security'] = df.apply(lambda row: get_headers_security(row['headers'], row['origin']), axis=1)
+            df['headers_security'] = df.apply(lambda row: classify_headers(row['headers'], row['origin']), axis=1)
             df['origin'] = df['origin'].apply(str)
 
             training_data = df[['contributor', 'origin', 'status_code']].copy()
@@ -75,12 +75,12 @@ def attribute_differences(urls: list[tuple[int, str, str]], proximity_sets_path:
             training_data = encode_non_numeric_features(training_data, ['contributor', 'origin'])
 
             for security_mechanism in SECURITY_MECHANISM_HEADERS:
-                target_values = df['headers_security'].apply(lambda row: row[security_mechanism])
+                target_values = df['headers_security'].apply(lambda row: str(row[security_mechanism]))
 
                 if target_values.nunique() == 1:
                     continue
 
-                assert target_values.nunique() == 2, target_values.nunique()
+                assert target_values.nunique() >= 2, target_values.nunique()
 
                 if information_gain := compute_information_gain(training_data, target_values):
                     max_information_gain = max(information_gain.values())

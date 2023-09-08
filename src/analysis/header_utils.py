@@ -102,22 +102,6 @@ def classify_headers(headers: Headers, origin: Origin | None = None) -> Headers:
     })
 
 
-def get_headers_security(headers: Headers, origin: Origin | None = None) -> Headers:
-    return Headers({
-        'X-Frame-Options': is_secure_xfo(headers.get('X-Frame-Options', '')),
-        'Content-Security-Policy::XSS': is_secure_csp_xss(headers.get('Content-Security-Policy', '')),
-        'Content-Security-Policy::FA': is_secure_csp_fa(headers.get('Content-Security-Policy', ''), origin),
-        'Content-Security-Policy::TLS': is_secure_csp_tls(headers.get('Content-Security-Policy', '')),
-        'Content-Security-Policy': is_secure_csp(headers.get('Content-Security-Policy', ''), origin),
-        'Strict-Transport-Security': is_secure_hsts(headers.get('Strict-Transport-Security', '')),
-        'Referrer-Policy': is_secure_referrer_policy(headers.get('Referrer-Policy', '')),
-        'Permissions-Policy': is_secure_permissions_policy(headers.get('Permissions-Policy', '')),
-        'Cross-Origin-Opener-Policy': is_secure_coop(headers.get('Cross-Origin-Opener-Policy', '')),
-        'Cross-Origin-Resource-Policy': is_secure_corp(headers.get('Cross-Origin-Resource-Policy', '')),
-        'Cross-Origin-Embedder-Policy': is_secure_coep(headers.get('Cross-Origin-Embedder-Policy', ''))
-    })
-
-
 # ----------------------------------------------------------------------------
 # X-Frame-Options
 
@@ -135,10 +119,6 @@ def classify_xfo(value: str) -> XFO:
             return XFO.SAMEORIGIN
         case _:
             return XFO.UNSAFE
-
-
-def is_secure_xfo(value: str) -> bool:
-    return classify_xfo(value) is not XFO.UNSAFE
 
 
 # ----------------------------------------------------------------------------
@@ -218,10 +198,6 @@ def classify_csp_xss(value: str) -> CspXSS:
     return res
 
 
-def is_secure_csp_xss(value: str) -> bool:
-    return classify_csp_xss(value) is not CspXSS.UNSAFE
-
-
 # Framing-Control
 def classify_framing_control(directive: set[str], origin: Origin) -> CspFA:
     if len(directive) == 0 or directive == {"'none'"}:
@@ -251,10 +227,6 @@ def classify_csp_fa(value: str, origin: Origin) -> CspFA:
     return res
 
 
-def is_secure_csp_fa(value: str, origin: Origin) -> bool:
-    return classify_csp_fa(value, origin) is not CspFA.UNSAFE
-
-
 # TLS-Enforcement
 def classify_policy_tls(policy: CSP) -> CspTLS:
     if 'block-all-mixed-content' in policy:
@@ -272,17 +244,9 @@ def classify_csp_tls(value: str) -> CspTLS:
     return res
 
 
-def is_secure_csp_tls(value: str) -> bool:
-    return classify_csp_tls(value) is not CspTLS.UNSAFE
-
-
 # All use-cases
 def classify_csp(value: str, origin: Origin) -> tuple[CspXSS, CspFA, CspTLS]:
     return classify_csp_xss(value), classify_csp_fa(value, origin), classify_csp_tls(value)
-
-
-def is_secure_csp(value: str, origin: Origin) -> bool:
-    return is_secure_csp_xss(value) or is_secure_csp_fa(value, origin) or is_secure_csp_tls(value)
 
 
 # ----------------------------------------------------------------------------
@@ -336,11 +300,6 @@ def classify_hsts(value: str) -> tuple[HSTSAge, HSTSSub, HSTSPreload]:
             HSTSPreload(preload and include_sub_domains and classified_max_age is HSTSAge.BIG))
 
 
-def is_secure_hsts(value: str) -> bool:
-    max_age, include_sub_domains, preload = classify_hsts(value)
-    return max_age is HSTSAge.BIG and include_sub_domains is HSTSSub.ACTIVE
-
-
 # ----------------------------------------------------------------------------
 # Referrer-Policy
 
@@ -387,11 +346,6 @@ def classify_referrer_policy(value: str) -> RP:
             return RP.STRICT_ORIGIN_WHEN_CROSS_ORIGIN
 
 
-def is_secure_referrer_policy(value: str) -> bool:
-    classified_value = classify_referrer_policy(value)
-    return classified_value not in (RP.UNSAFE_URL, RP.NO_REFERRER_WHEN_DOWNGRADE)
-
-
 # ----------------------------------------------------------------------------
 # Permissions-Policy
 
@@ -428,10 +382,6 @@ def classify_permissions_policy(value: str, origin: Origin | None = None) -> str
     return ','.join(sorted(directives))
 
 
-def is_secure_permissions_policy(value: str) -> bool:
-    return True
-
-
 # ----------------------------------------------------------------------------
 # Cross-Origin-Opener-Policy
 
@@ -448,10 +398,6 @@ def classify_coop(value: str) -> COOP:
             return COOP.SAME_ORIGIN_ALLOW_POPUPS
         case _:
             return COOP.UNSAFE_NONE
-
-
-def is_secure_coop(value: str) -> bool:
-    return classify_coop(value) is not COOP.UNSAFE_NONE
 
 
 # ----------------------------------------------------------------------------
@@ -473,10 +419,6 @@ def classify_corp(value: str) -> CORP:
             return CORP.CROSS_ORIGIN
 
 
-def is_secure_corp(value: str) -> bool:
-    return classify_corp(value) is not CORP.CROSS_ORIGIN
-
-
 # ----------------------------------------------------------------------------
 # Cross-Origin-Embedder-Policy
 
@@ -494,7 +436,3 @@ def classify_coep(value: str) -> COEP:
             return COEP.REQUIRE_CORP
         case _:
             return COEP.UNSAFE_NONE
-
-
-def is_secure_coep(value: str) -> bool:
-    return classify_coep(value) is not COEP.UNSAFE_NONE
