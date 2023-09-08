@@ -1,11 +1,12 @@
 import re
+from functools import cache
 from json import JSONEncoder, JSONDecoder
 from typing import NamedTuple
 
 from requests.structures import CaseInsensitiveDict
 from urllib3.util import parse_url
 
-from analysis.security_enums import XFO, CspFA, CspXSS, CspTLS, HSTSAge, HSTSSub, HSTSPreload, RP, COOP, CORP, COEP, \
+from analysis.security_enums import XFO, CspXSS, CspFA, CspTLS, HSTSAge, HSTSSub, HSTSPreload, RP, COOP, CORP, COEP, \
     max_enum
 
 Headers = CaseInsensitiveDict
@@ -44,30 +45,53 @@ def parse_origin(url: str) -> Origin:
     return Origin(parsed_url.scheme.lower(), parsed_url.host.lower(), parsed_url.port)
 
 
-def normalize_headers(headers: Headers, origin: Origin | None = None) -> Headers:
+def normalize_headers(headers: Headers, _: Origin | None = None) -> Headers:
     return Headers({
-        'X-Frame-Options': normalize_xfo(
-            headers['X-Frame-Options']) if 'X-Frame-Options' in headers else '<MISSING>',
-        'Content-Security-Policy': normalize_csp(
-            headers['Content-Security-Policy']) if 'Content-Security-Policy' in headers else '<MISSING>',
-        'Strict-Transport-Security': normalize_hsts(
-            headers['Strict-Transport-Security']) if 'Strict-Transport-Security' in headers else '<MISSING>',
-        'Referrer-Policy': normalize_referrer_policy(
-            headers['Referrer-Policy']) if 'Referrer-Policy' in headers else '<MISSING>',
-        'Permissions-Policy': normalize_permissions_policy(
-            headers['Permissions-Policy']) if 'Permissions-Policy' in headers else '<MISSING>',
-        'Cross-Origin-Opener-Policy': normalize_coop(
-            headers['Cross-Origin-Opener-Policy']) if 'Cross-Origin-Opener-Policy' in headers else '<MISSING>',
-        'Cross-Origin-Resource-Policy': normalize_corp(
-            headers['Cross-Origin-Resource-Policy']) if 'Cross-Origin-Resource-Policy' in headers else '<MISSING>',
-        'Cross-Origin-Embedder-Policy': normalize_coep(
-            headers['Cross-Origin-Embedder-Policy']) if 'Cross-Origin-Embedder-Policy' in headers else '<MISSING>'
+        'X-Frame-Options': (
+            normalize_xfo(headers['X-Frame-Options'])
+            if 'X-Frame-Options' in headers else '<MISSING>'),
+        'Content-Security-Policy::XSS': (
+            normalize_csp(headers['Content-Security-Policy'],
+                          ['default-src', 'script-src'])
+            if 'Content-Security-Policy' in headers else '<MISSING>'),
+        'Content-Security-Policy::FA': (
+            normalize_csp(headers['Content-Security-Policy'],
+                          ['frame-ancestors'])
+            if 'Content-Security-Policy' in headers else '<MISSING>'),
+        'Content-Security-Policy::TLS': (
+            normalize_csp(headers['Content-Security-Policy'],
+                          ['block-all-mixed-content', 'upgrade-insecure-requests'])
+            if 'Content-Security-Policy' in headers else '<MISSING>'),
+        'Content-Security-Policy': (
+            normalize_csp(headers['Content-Security-Policy'])
+            if 'Content-Security-Policy' in headers else '<MISSING>'),
+        'Strict-Transport-Security': (
+            normalize_hsts(headers['Strict-Transport-Security'])
+            if 'Strict-Transport-Security' in headers else '<MISSING>'),
+        'Referrer-Policy': (
+            normalize_referrer_policy(headers['Referrer-Policy'])
+            if 'Referrer-Policy' in headers else '<MISSING>'),
+        'Permissions-Policy': (
+            normalize_permissions_policy(headers['Permissions-Policy'])
+            if 'Permissions-Policy' in headers else '<MISSING>'),
+        'Cross-Origin-Opener-Policy': (
+            normalize_coop(headers['Cross-Origin-Opener-Policy'])
+            if 'Cross-Origin-Opener-Policy' in headers else '<MISSING>'),
+        'Cross-Origin-Resource-Policy': (
+            normalize_corp(headers['Cross-Origin-Resource-Policy'])
+            if 'Cross-Origin-Resource-Policy' in headers else '<MISSING>'),
+        'Cross-Origin-Embedder-Policy': (
+            normalize_coep(headers['Cross-Origin-Embedder-Policy'])
+            if 'Cross-Origin-Embedder-Policy' in headers else '<MISSING>')
     })
 
 
 def classify_headers(headers: Headers, origin: Origin | None = None) -> Headers:
     return Headers({
         'X-Frame-Options': classify_xfo(headers.get('X-Frame-Options', '')),
+        'Content-Security-Policy::XSS': classify_csp_xss(headers.get('Content-Security-Policy', '')),
+        'Content-Security-Policy::FA': classify_csp_fa(headers.get('Content-Security-Policy', ''), origin),
+        'Content-Security-Policy::TLS': classify_csp_tls(headers.get('Content-Security-Policy', '')),
         'Content-Security-Policy': classify_csp(headers.get('Content-Security-Policy', ''), origin),
         'Strict-Transport-Security': classify_hsts(headers.get('Strict-Transport-Security', '')),
         'Referrer-Policy': classify_referrer_policy(headers.get('Referrer-Policy', '')),
@@ -81,10 +105,9 @@ def classify_headers(headers: Headers, origin: Origin | None = None) -> Headers:
 def get_headers_security(headers: Headers, origin: Origin | None = None) -> Headers:
     return Headers({
         'X-Frame-Options': is_secure_xfo(headers.get('X-Frame-Options', '')),
-        'Content-Security-Policy-FA': is_secure_csp_fa(headers.get('Content-Security-Policy', ''), origin),
-        'Content-Security-Policy-XSS': is_secure_csp_xss(headers.get('Content-Security-Policy', ''), origin),
-        'Content-Security-Policy-TLS': is_secure_csp_tls(headers.get('Content-Security-Policy', ''), origin),
-        'Content-Security-Policy': is_secure_csp(headers.get('Content-Security-Policy', ''), origin),
+        'Content-Security-Policy::XSS': is_secure_csp_xss(headers.get('Content-Security-Policy', '')),
+        'Content-Security-Policy::FA': is_secure_csp_fa(headers.get('Content-Security-Policy', ''), origin),
+        'Content-Security-Policy::TLS': is_secure_csp_tls(headers.get('Content-Security-Policy', '')),
         'Strict-Transport-Security': is_secure_hsts(headers.get('Strict-Transport-Security', '')),
         'Referrer-Policy': is_secure_referrer_policy(headers.get('Referrer-Policy', '')),
         'Permissions-Policy': is_secure_permissions_policy(headers.get('Permissions-Policy', '')),
@@ -92,10 +115,6 @@ def get_headers_security(headers: Headers, origin: Origin | None = None) -> Head
         'Cross-Origin-Resource-Policy': is_secure_corp(headers.get('Cross-Origin-Resource-Policy', '')),
         'Cross-Origin-Embedder-Policy': is_secure_coep(headers.get('Cross-Origin-Embedder-Policy', ''))
     })
-
-
-def get_headers_security_categories() -> tuple[str]:
-    return tuple(get_headers_security(Headers()).keys())
 
 
 # ----------------------------------------------------------------------------
@@ -124,7 +143,7 @@ def is_secure_xfo(value: str) -> bool:
 # ----------------------------------------------------------------------------
 # Content-Security-Policy
 
-def normalize_csp(value: str) -> str:
+def normalize_csp(value: str, valid_directives: list[str] = None) -> str:
     value = re.sub(r"'nonce-[A-Za-z0-9+/\-_]+={0,2}'", "'nonce-VALUE'", value, flags=re.IGNORECASE)
     value = re.sub(r"'sha(256|384|512)-[A-Za-z0-9+/\-_]+={0,2}'", r"'sha\1-VALUE'", value, flags=re.IGNORECASE)
     value = re.sub(r"report-(uri|to)[^;,]*", r"report-\1 REPORT_URI", value, flags=re.IGNORECASE)
@@ -135,7 +154,7 @@ def normalize_csp(value: str) -> str:
 
         for directive in policy.strip().split(';'):
             directive_name, *tokens = [token.strip() for token in directive.strip().split()] or ['']
-            if directive_name == '':
+            if directive_name == '' or valid_directives is not None and directive_name not in valid_directives:
                 continue
             normalized_policy.append(' '.join([directive_name, *sorted(tokens)]))
 
@@ -155,6 +174,7 @@ class CSP(CaseInsensitiveDict):
         return True
 
 
+@cache
 def parse_csp(value: str) -> list[CSP]:
     policies = []
     for policy in value.strip().split(','):
@@ -168,23 +188,7 @@ def parse_csp(value: str) -> list[CSP]:
     return policies
 
 
-def classify_framing_control(directive: set[str], origin: Origin) -> CspFA:
-    if len(directive) == 0 or directive == {"'none'"}:
-        return CspFA.NONE
-
-    secure_origin = f"https://{origin.host}" if origin.port is None else f"https://{origin.host}:{origin.port}"
-    domain = origin.host if origin.port is None else f"{origin.host}:{origin.port}"
-    self_expressions = {"'self'", origin, f"{origin}/", secure_origin, f"{secure_origin}/", domain, f"{domain}/"}
-    if all(source in self_expressions for source in directive):
-        return CspFA.SELF
-
-    unsafe_expressions = {'*', 'http:', 'http://', 'http://*', 'https:', 'https://', 'https://*'}
-    if any(source in unsafe_expressions for source in directive):
-        return CspFA.UNSAFE
-
-    return CspFA.CONSTRAINED
-
-
+# XSS-Mitigation
 def is_unsafe_inline_active(directive: set[str]) -> bool:
     secure_expressions = {"'nonce-VALUE'", "'sha256-VALUE'", "'sha384-VALUE'", "'sha512-VALUE'", "'strict-dynamic'"}
     return "'unsafe-inline'" in directive and not directive & secure_expressions
@@ -202,41 +206,82 @@ def classify_xss_mitigation(csp: CSP) -> CspXSS:
     return CspXSS.SAFE
 
 
-def classify_policy(policy: CSP, origin: Origin) -> dict[str, CspFA | CspXSS | CspTLS]:
-    res = {'FA': CspFA.UNSAFE, 'XSS': CspXSS.UNSAFE, 'TLS': CspTLS.UNSAFE}
-    if 'frame-ancestors' in policy:
-        res['FA'] = classify_framing_control(policy['frame-ancestors'], origin)
-    if 'script-src' in policy or 'default-src' in policy:
-        res['XSS'] = classify_xss_mitigation(policy)
-    if 'block-all-mixed-content' in policy:
-        res['TLS'] = CspTLS.BLOCK_ALL_MIXED_CONTENT
-    if 'upgrade-insecure-requests' in policy:
-        res['TLS'] = CspTLS.UPGRADE_INSECURE_REQUESTS
+def classify_policy_xss(policy: CSP) -> CspXSS:
+    return classify_xss_mitigation(policy) if 'script-src' in policy or 'default-src' in policy else CspXSS.UNSAFE
+
+
+def classify_csp_xss(value: str) -> CspXSS:
+    res = CspXSS.UNSAFE
+    for policy in parse_csp(normalize_csp(value)):
+        res = max_enum(res, classify_policy_xss(policy))
     return res
 
 
-def classify_csp(value: str, origin: Origin) -> tuple[CspFA, CspXSS, CspTLS]:
-    res = {'FA': CspFA.UNSAFE, 'XSS': CspXSS.UNSAFE, 'TLS': CspTLS.UNSAFE}
+def is_secure_csp_xss(value: str) -> bool:
+    return classify_csp_xss(value) is not CspXSS.UNSAFE
+
+
+# Framing-Control
+def classify_framing_control(directive: set[str], origin: Origin) -> CspFA:
+    if len(directive) == 0 or directive == {"'none'"}:
+        return CspFA.NONE
+
+    secure_origin = f"https://{origin.host}" if origin.port is None else f"https://{origin.host}:{origin.port}"
+    domain = origin.host if origin.port is None else f"{origin.host}:{origin.port}"
+    self_expressions = {"'self'", origin, f"{origin}/", secure_origin, f"{secure_origin}/", domain, f"{domain}/"}
+    if all(source in self_expressions for source in directive):
+        return CspFA.SELF
+
+    unsafe_expressions = {'*', 'http:', 'http://', 'http://*', 'https:', 'https://', 'https://*'}
+    if any(source in unsafe_expressions for source in directive):
+        return CspFA.UNSAFE
+
+    return CspFA.CONSTRAINED
+
+
+def classify_policy_fa(policy: CSP, origin: Origin) -> CspFA:
+    return classify_framing_control(policy['frame-ancestors'], origin) if 'frame-ancestors' in policy else CspFA.UNSAFE
+
+
+def classify_csp_fa(value: str, origin: Origin) -> CspFA:
+    res = CspFA.UNSAFE
     for policy in parse_csp(normalize_csp(value)):
-        for use_case, classified_value in classify_policy(policy, origin).items():
-            res[use_case] = max_enum(res[use_case], classified_value)
-    return res['FA'], res['XSS'], res['TLS']
+        res = max_enum(res, classify_policy_fa(policy, origin))
+    return res
 
 
 def is_secure_csp_fa(value: str, origin: Origin) -> bool:
-    return classify_csp(value, origin)[0] is not CspFA.UNSAFE
+    return classify_csp_fa(value, origin) is not CspFA.UNSAFE
 
 
-def is_secure_csp_xss(value: str, origin: Origin) -> bool:
-    return classify_csp(value, origin)[1] is not CspXSS.UNSAFE
+# TLS-Enforcement
+def classify_policy_tls(policy: CSP) -> CspTLS:
+    if 'block-all-mixed-content' in policy:
+        return CspTLS.BLOCK_ALL_MIXED_CONTENT
+    if 'upgrade-insecure-requests' in policy:
+        return CspTLS.UPGRADE_INSECURE_REQUESTS
+    else:
+        return CspTLS.UNSAFE
 
 
-def is_secure_csp_tls(value: str, origin: Origin) -> bool:
-    return classify_csp(value, origin)[2] is not CspTLS.UNSAFE
+def classify_csp_tls(value: str) -> CspTLS:
+    res = CspTLS.UNSAFE
+    for policy in parse_csp(normalize_csp(value)):
+        res = max_enum(res, classify_policy_tls(policy))
+    return res
+
+
+def is_secure_csp_tls(value: str) -> bool:
+    return classify_csp_tls(value) is not CspTLS.UNSAFE
+
+
+# All use-cases
+def classify_csp(value: str, origin: Origin) -> tuple[CspXSS, CspFA, CspTLS]:
+    return classify_csp_xss(value), classify_csp_fa(value, origin), classify_csp_tls(value)
 
 
 def is_secure_csp(value: str, origin: Origin) -> bool:
-    return is_secure_csp_fa(value, origin) and is_secure_csp_xss(value, origin) and is_secure_csp_tls(value, origin)
+    return is_secure_csp_xss(value) and is_secure_csp_fa(value, origin) and is_secure_csp_tls(value)
 
 
 # ----------------------------------------------------------------------------

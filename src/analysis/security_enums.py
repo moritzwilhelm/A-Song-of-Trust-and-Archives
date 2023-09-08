@@ -15,16 +15,16 @@ class XFO(Enum):
     DENY = 2
 
 
+class CspXSS(Enum):
+    UNSAFE = 0
+    SAFE = 1
+
+
 class CspFA(Enum):
     UNSAFE = 0
     CONSTRAINED = 1
     SELF = 2
     NONE = 3
-
-
-class CspXSS(Enum):
-    UNSAFE = 0
-    SAFE = 1
 
 
 class CspTLS(Enum):
