@@ -82,9 +82,6 @@ def analyze_headers(targets: list[tuple[int, str, str]]) -> None:
 
         result['SUCCESS'].add(url)
 
-        if live_status_code != archived_status_code:
-            result['DIFFERENT_STATUS_CODE'].add(url)
-
         if live_end_url != archived_end_url:
             result['DIFFERENT_END_URL'].add(url)
 
@@ -98,8 +95,11 @@ def analyze_headers(targets: list[tuple[int, str, str]]) -> None:
 
         merge_analysis_results(result, compare_security_headers(url, live_headers, archived_headers))
 
-    result = {key: len(value) for key, value in result.items()}
+    raw_output_path = join_with_json_path(f"DISAGREEMENT-HEADERS-{LIVE_TABLE_NAME}-{ARCHIVE_TABLE_NAME}.RAW.json")
+    with open(raw_output_path, 'w') as file:
+        json.dump(result, file, indent=2, sort_keys=True)
 
+    result = {key: len(value) for key, value in result.items()}
     with open(join_with_json_path(f"DISAGREEMENT-HEADERS-{LIVE_TABLE_NAME}-{ARCHIVE_TABLE_NAME}.json"), 'w') as file:
         json.dump(result, file, indent=2, sort_keys=True)
 
@@ -138,9 +138,6 @@ def analyze_trackers(targets: list[tuple[int, str, str]]) -> None:
 
         result['SUCCESS'].add(url)
 
-        if live_status_code != archived_status_code:
-            result['DIFFERENT_STATUS_CODE'].add(url)
-
         if live_end_url != archived_end_url:
             result['DIFFERENT_END_URL'].add(url)
 
@@ -164,12 +161,19 @@ def analyze_trackers(targets: list[tuple[int, str, str]]) -> None:
 
         if live_trackers | archived_trackers:
             result['INCLUDES_TRACKERS'].add(url)
+            if live_trackers != archived_trackers:
+                result['DIFFERENT_TRACKERS'].add(url)
 
-        if live_trackers != archived_trackers:
-            result['DIFFERENT_TRACKERS'].add(url)
+            if bool(live_trackers) ^ bool(archived_trackers):
+                result['DIFFERENT_TRACKER_INCLUSION'].add(url)
+            elif live_trackers != archived_trackers:
+                result['DIFFERENT_TRACKERS_NONE_MISSING'].add(url)
+
+    raw_output_path = join_with_json_path(f"DISAGREEMENT-TRACKERS-{LIVE_TABLE_NAME}-{ARCHIVE_TABLE_NAME}.RAW.json")
+    with open(raw_output_path, 'w') as file:
+        json.dump(result, file, indent=2, sort_keys=True)
 
     result = {key: len(value) for key, value in result.items()}
-
     with open(join_with_json_path(f"DISAGREEMENT-TRACKERS-{LIVE_TABLE_NAME}-{ARCHIVE_TABLE_NAME}.json"), 'w') as file:
         json.dump(result, file, indent=2, sort_keys=True)
 
