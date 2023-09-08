@@ -229,7 +229,7 @@ def classify_framing_control(directive: set[str], origin: Origin) -> CspFA:
 
     secure_origin = f"https://{origin.host}" if origin.port is None else f"https://{origin.host}:{origin.port}"
     domain = origin.host if origin.port is None else f"{origin.host}:{origin.port}"
-    self_expressions = {"'self'", origin, f"{origin}/", secure_origin, f"{secure_origin}/", domain, f"{domain}/"}
+    self_expressions = {"'self'", str(origin), f"{origin}/", secure_origin, f"{secure_origin}/", domain, f"{domain}/"}
     if all(source in self_expressions for source in directive):
         return CspFA.SELF
 
@@ -396,12 +396,36 @@ def is_secure_referrer_policy(value: str) -> bool:
 # Permissions-Policy
 
 def normalize_permissions_policy(value: str) -> str:
-    tokens = sorted(token.strip() for token in value.lower().split(','))
-    return ','.join(tokens)
+    directives = []
+    for directive in value.lower().split(','):
+        name, allowlist = directive.strip().split('=')
+        if (match := re.match(r"\((.*)\)", allowlist)) is not None:
+            content = set(match.group(1).strip().split())
+            allowlist = f"({' '.join(sorted(content))})"
+        directives.append(f"{name}={allowlist}")
+    return ','.join(sorted(directives))
 
 
-def classify_permissions_policy(value: str) -> str:
-    return normalize_permissions_policy(value)
+# ASSUMPTION: All features have a default value of *
+def classify_permissions_policy(value: str, origin: Origin | None = None) -> str:
+    directives = []
+    for directive in value.lower().split(','):
+        name, allowlist = directive.strip().split('=')
+        if (match := re.match(r"\((.*)\)", allowlist)) is not None:
+            content = set(match.group(1).strip().split())
+            if '*' in content:
+                continue
+
+            secure_origin = f"https://{origin.host}" if origin.port is None else f"https://{origin.host}:{origin.port}"
+            domain = origin.host if origin.port is None else f"{origin.host}:{origin.port}"
+            self_expressions = {f'"{origin}"', f'"{origin}/"', f'"{secure_origin}"', f'"{secure_origin}/"',
+                                f'"{domain}"', f'"{domain}/"'}
+            if any(expression in content for expression in self_expressions):
+                content -= self_expressions
+                content.add('self')
+            allowlist = f"({' '.join(sorted(content))})"
+            directives.append(f"{name}={allowlist}")
+    return ','.join(sorted(directives))
 
 
 def is_secure_permissions_policy(value: str) -> bool:
