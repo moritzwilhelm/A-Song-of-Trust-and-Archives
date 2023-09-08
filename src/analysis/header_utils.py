@@ -108,6 +108,7 @@ def get_headers_security(headers: Headers, origin: Origin | None = None) -> Head
         'Content-Security-Policy::XSS': is_secure_csp_xss(headers.get('Content-Security-Policy', '')),
         'Content-Security-Policy::FA': is_secure_csp_fa(headers.get('Content-Security-Policy', ''), origin),
         'Content-Security-Policy::TLS': is_secure_csp_tls(headers.get('Content-Security-Policy', '')),
+        'Content-Security-Policy': is_secure_csp(headers.get('Content-Security-Policy', ''), origin),
         'Strict-Transport-Security': is_secure_hsts(headers.get('Strict-Transport-Security', '')),
         'Referrer-Policy': is_secure_referrer_policy(headers.get('Referrer-Policy', '')),
         'Permissions-Policy': is_secure_permissions_policy(headers.get('Permissions-Policy', '')),
@@ -281,7 +282,7 @@ def classify_csp(value: str, origin: Origin) -> tuple[CspXSS, CspFA, CspTLS]:
 
 
 def is_secure_csp(value: str, origin: Origin) -> bool:
-    return is_secure_csp_xss(value) and is_secure_csp_fa(value, origin) and is_secure_csp_tls(value)
+    return is_secure_csp_xss(value) or is_secure_csp_fa(value, origin) or is_secure_csp_tls(value)
 
 
 # ----------------------------------------------------------------------------
