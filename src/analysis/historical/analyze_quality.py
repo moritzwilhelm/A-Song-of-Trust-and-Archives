@@ -5,7 +5,8 @@ from typing import Callable
 
 from tqdm import tqdm
 
-from analysis.header_utils import Headers, HeadersDecoder, Origin, parse_origin, normalize_headers, classify_headers
+from analysis.header_utils import Headers, HeadersDecoder, Origin, parse_origin, normalize_headers, classify_headers, \
+    get_headers_security
 from configs.analysis import RELEVANT_HEADERS
 from configs.crawling import TIMESTAMPS
 from configs.utils import join_with_json_path, get_tranco_data
@@ -42,7 +43,7 @@ def analyze_quality(urls: list[tuple[int, str, str]],
 
 
 def main():
-    for aggregation_function in normalize_headers, classify_headers:
+    for aggregation_function in normalize_headers, classify_headers, get_headers_security:
         analyze_quality(get_tranco_data(),
                         join_with_json_path(f"PROXIMITY-SETS-{10}.json"),
                         aggregation_function=aggregation_function)
