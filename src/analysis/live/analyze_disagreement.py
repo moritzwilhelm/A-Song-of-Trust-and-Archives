@@ -88,16 +88,12 @@ def analyze_headers(targets: list[tuple[int, str, str]]) -> None:
         header_comparison_result = compare_security_headers(url, live_headers, archived_headers)
         merge_analysis_results(result, header_comparison_result)
 
-        # check if inconsistency (if there is any) is due to different end url/origin
-        url_mismatch = live_end_url != archived_end_url
+        # check if inconsistency (if there is any) is due to different origin
         origin_mismatch = parse_origin(live_end_url) != parse_origin(archived_end_url)
         for granularity in 'SYNTAX_DIFFERENCE', 'SEMANTICS_DIFFERENCE':
             for mechanism in SECURITY_MECHANISM_HEADERS:
                 category = f"{granularity}_{mechanism}"
                 if url in result[category]:
-                    if url_mismatch:
-                        result[f"{category}::URL_MISMATCH"].add(url)
-                        result[f"{granularity}::URL_MISMATCH"].add(url)
                     if origin_mismatch:
                         result[f"{category}::ORIGIN_MISMATCH"].add(url)
                         result[f"{granularity}::ORIGIN_MISMATCH"].add(url)
