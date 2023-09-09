@@ -1,6 +1,7 @@
 import json
 from collections import defaultdict
 from datetime import datetime, timedelta, UTC
+from pathlib import Path
 
 from tqdm import tqdm
 
@@ -9,9 +10,11 @@ from analysis.header_utils import Headers, parse_origin, normalize_headers, clas
 from analysis.post_processing.extract_script_metadata import METADATA_TABLE_NAME
 from configs.analysis import RELEVANT_HEADERS, INTERNET_ARCHIVE_END_URL_REGEX, MEMENTO_HEADER, \
     SECURITY_MECHANISM_HEADERS
+from configs.crawling import ARCHIVE_IT_USER_AGENT
 from configs.database import get_database_cursor
 from configs.utils import get_tranco_data, join_with_json_path, get_tracking_domains
 from data_collection.collect_live_data import TABLE_NAME as LIVE_TABLE_NAME
+from data_collection.crawling import crawl, CrawlingException
 
 TIMESTAMP = datetime(2023, 9, 1, 12, tzinfo=UTC)
 ARCHIVE_TABLE_NAME = 'HISTORICAL_DATA_FOR_COMPARISON'
@@ -55,7 +58,8 @@ def analyze_headers(targets: list[tuple[int, str, str]]) -> None:
             SELECT l.start_url, l.end_url, l.status_code, l.headers,
                    (a.headers->>%s)::TIMESTAMPTZ, substring(a.end_url FROM %s), a.status_code, a.headers
             FROM {LIVE_TABLE_NAME} l JOIN {ARCHIVE_TABLE_NAME} a USING (tranco_id, status_code)
-            WHERE l.status_code IS NOT NULL AND a.headers->>%s IS NOT NULL AND l.timestamp::date=%s AND a.timestamp::date=%s
+            WHERE l.status_code IS NOT NULL AND a.headers->>%s IS NOT NULL 
+            AND l.timestamp::date=%s AND a.timestamp::date=%s
         """, (MEMENTO_HEADER.lower(), INTERNET_ARCHIVE_END_URL_REGEX,
               MEMENTO_HEADER.lower(), TIMESTAMP.date(), TIMESTAMP.date()))
         for start_url, *data, archive_headers in cursor.fetchall():
@@ -81,14 +85,20 @@ def analyze_headers(targets: list[tuple[int, str, str]]) -> None:
                 result[f"USES_{header}"].add(url)
                 result['USES_ANY'].add(url)
 
-        merge_analysis_results(result, compare_security_headers(url, live_headers, archived_headers))
+        header_comparison_result = compare_security_headers(url, live_headers, archived_headers)
+        merge_analysis_results(result, header_comparison_result)
 
-        if url in result['DIFFERENT']:
-            if live_end_url != archived_end_url:
-                result['DIFFERENT::URL_MISMATCH'].add(url)
-
-            if parse_origin(live_end_url) != parse_origin(archived_end_url):
-                result['DIFFERENT::ORIGIN_MISMATCH'].add(url)
+        # check if inconsistency (if there is any) is due to different end url/origin
+        url_mismatch = live_end_url != archived_end_url
+        origin_mismatch = parse_origin(live_end_url) != parse_origin(archived_end_url)
+        for granularity in 'SYNTAX_DIFFERENCE', 'SEMANTICS_DIFFERENCE':
+            for mechanism in '', *SECURITY_MECHANISM_HEADERS:
+                category = f"{granularity}_{mechanism}"
+                if url in result[category]:
+                    if url_mismatch:
+                        result[f"{category}::URL_MISMATCH"].add(url)
+                    if origin_mismatch:
+                        result[f"{category}::ORIGIN_MISMATCH"].add(url)
 
     raw_output_path = join_with_json_path(f"DISAGREEMENT-HEADERS-{LIVE_TABLE_NAME}-{ARCHIVE_TABLE_NAME}.RAW.json")
     with open(raw_output_path, 'w') as file:
@@ -96,6 +106,52 @@ def analyze_headers(targets: list[tuple[int, str, str]]) -> None:
 
     result = {key: len(value) for key, value in result.items()}
     with open(join_with_json_path(f"DISAGREEMENT-HEADERS-{LIVE_TABLE_NAME}-{ARCHIVE_TABLE_NAME}.json"), 'w') as file:
+        json.dump(result, file, indent=2, sort_keys=True)
+
+
+def analyze_headers_disagreement_reason(disagreement_file: Path) -> None:
+    """Check if header value inconsistency is due to user agent sniffing."""
+    with open(disagreement_file) as file:
+        disagreement = json.load(file)
+
+    result = defaultdict(set)
+    for url in tqdm(disagreement['DIFFERENT']):
+        try:
+            chrome = crawl(url, store_content=False)
+        except CrawlingException:
+            result['ERROR_CHROME'].add(url)
+
+        try:
+            archive_org = crawl(url, user_agent=ARCHIVE_IT_USER_AGENT, store_content=False)
+        except CrawlingException:
+            result['ERROR_ARCHIVE_BOT'].add(url)
+
+        if url in result['ERROR_CHROME'] or url in result['ERROR_ARCHIVE_BOT']:
+            if url in result['ERROR_CHROME'] and url in result['ERROR_ARCHIVE_BOT']:
+                result['ERROR_BOTH'].add(url)
+            continue
+
+        normalized_chrome = normalize_headers(chrome.headers)
+        normalized_archive_org = normalize_headers(archive_org.headers)
+        classified_chrome = classify_headers(chrome.headers, parse_origin(chrome.url))
+        classified_archive_org = classify_headers(archive_org.headers, parse_origin(archive_org.url))
+
+        for mechanism in SECURITY_MECHANISM_HEADERS:
+            if normalized_chrome[mechanism] != normalized_archive_org[mechanism]:
+                result[f"SYNTAX_DIFFERENCE_{mechanism}"].add(url)
+                result['SYNTAX_DIFFERENCE'].add(url)
+                if classified_chrome[mechanism] != classified_archive_org[mechanism]:
+                    result[f"SEMANTICS_DIFFERENCE_{mechanism}"].add(url)
+                    result['SEMANTICS_DIFFERENCE'].add(url)
+
+        result['DIFFERENT' if url in result['SYNTAX_DIFFERENCE'] else 'EQUAL'].add(url)
+
+    raw_output_path = join_with_json_path(f"DISAGREEMENT-UA-HEADERS-{LIVE_TABLE_NAME}-{ARCHIVE_TABLE_NAME}.RAW.json")
+    with open(raw_output_path, 'w') as file:
+        json.dump(result, file, indent=2, sort_keys=True, default=list)
+
+    result = {key: len(value) for key, value in result.items()}
+    with open(join_with_json_path(f"DISAGREEMENT-UA-HEADERS-{LIVE_TABLE_NAME}-{ARCHIVE_TABLE_NAME}.json"), 'w') as file:
         json.dump(result, file, indent=2, sort_keys=True)
 
 
@@ -174,6 +230,9 @@ def analyze_trackers(targets: list[tuple[int, str, str]]) -> None:
 
 def main():
     analyze_headers(get_tranco_data())
+    analyze_headers_disagreement_reason(
+        join_with_json_path(f"DISAGREEMENT-HEADERS-{LIVE_TABLE_NAME}-{ARCHIVE_TABLE_NAME}.RAW.json"))
+
     analyze_trackers(get_tranco_data())
 
 

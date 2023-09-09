@@ -11,6 +11,8 @@ NUMBER_URLS = 20_000
 URL_PREFIX = 'http://www.'
 USER_AGENT = \
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36'
+ARCHIVE_IT_USER_AGENT = \
+    'Mozilla/5.0 (compatible; archive.org_bot; Archive-It; +http://archive-it.org/files/site-owners.html)'
 
 # TIMESTAMP CONSTANTS
 TODAY = datetime.now(UTC).replace(hour=12, minute=0, second=0, microsecond=0)
