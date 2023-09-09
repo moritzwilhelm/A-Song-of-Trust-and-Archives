@@ -76,18 +76,19 @@ def analyze_headers(targets: list[tuple[int, str, str]]) -> None:
 
         result['SUCCESS'].add(url)
 
-        if live_end_url != archived_end_url:
-            result['DIFFERENT_END_URL'].add(url)
-
-        if parse_origin(live_end_url) != parse_origin(archived_end_url):
-            result['DIFFERENT_END_URL_ORIGIN'].add(url)
-
         for header in RELEVANT_HEADERS:
             if archived_headers.get(header) or live_headers.get(header):
                 result[f"USES_{header}"].add(url)
                 result['USES_ANY'].add(url)
 
         merge_analysis_results(result, compare_security_headers(url, live_headers, archived_headers))
+
+        if url in result['DIFFERENT']:
+            if live_end_url != archived_end_url:
+                result['DIFFERENT::URL_MISMATCH'].add(url)
+
+            if parse_origin(live_end_url) != parse_origin(archived_end_url):
+                result['DIFFERENT::ORIGIN_MISMATCH'].add(url)
 
     raw_output_path = join_with_json_path(f"DISAGREEMENT-HEADERS-{LIVE_TABLE_NAME}-{ARCHIVE_TABLE_NAME}.RAW.json")
     with open(raw_output_path, 'w') as file:
@@ -126,17 +127,15 @@ def analyze_trackers(targets: list[tuple[int, str, str]]) -> None:
         (live_end_url, live_status_code, live_urls, live_hosts, live_sites, memento_datetime, archived_end_url,
          archived_status_code, archived_urls, archived_hosts, archived_sites) = analysis_data[url]
 
+        if parse_origin(live_end_url) != parse_origin(archived_end_url):
+            result['ORIGIN_MISMATCH'].add(url)
+            continue
+
         if abs(memento_datetime - TIMESTAMP) > timedelta(1):
             result['OUTDATED'].add(url)
             continue
 
         result['SUCCESS'].add(url)
-
-        if live_end_url != archived_end_url:
-            result['DIFFERENT_END_URL'].add(url)
-
-        if parse_origin(live_end_url) != parse_origin(archived_end_url):
-            result['DIFFERENT_END_URL_ORIGIN'].add(url)
 
         if set(live_urls) | set(archived_urls):
             result['INCLUDES_SCRIPTS'].add(url)
@@ -165,12 +164,11 @@ def analyze_trackers(targets: list[tuple[int, str, str]]) -> None:
             if bool(live_trackers) ^ bool(archived_trackers):
                 result['TRACKER_INCLUSION_EITHER_MISSING'].add(url)
 
-    raw_output_path = join_with_json_path(f"DISAGREEMENT-TRACKERS-{LIVE_TABLE_NAME}-{ARCHIVE_TABLE_NAME}.RAW.json")
-    with open(raw_output_path, 'w') as file:
+    with open(join_with_json_path(f"DISAGREEMENT-JS-{LIVE_TABLE_NAME}-{ARCHIVE_TABLE_NAME}.RAW.json"), 'w') as file:
         json.dump(result, file, indent=2, sort_keys=True, default=list)
 
     result = {key: len(value) for key, value in result.items()}
-    with open(join_with_json_path(f"DISAGREEMENT-TRACKERS-{LIVE_TABLE_NAME}-{ARCHIVE_TABLE_NAME}.json"), 'w') as file:
+    with open(join_with_json_path(f"DISAGREEMENT-JS-{LIVE_TABLE_NAME}-{ARCHIVE_TABLE_NAME}.json"), 'w') as file:
         json.dump(result, file, indent=2, sort_keys=True)
 
 
