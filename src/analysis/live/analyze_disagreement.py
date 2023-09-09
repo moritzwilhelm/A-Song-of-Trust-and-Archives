@@ -92,13 +92,15 @@ def analyze_headers(targets: list[tuple[int, str, str]]) -> None:
         url_mismatch = live_end_url != archived_end_url
         origin_mismatch = parse_origin(live_end_url) != parse_origin(archived_end_url)
         for granularity in 'SYNTAX_DIFFERENCE', 'SEMANTICS_DIFFERENCE':
-            for mechanism in '', *SECURITY_MECHANISM_HEADERS:
+            for mechanism in SECURITY_MECHANISM_HEADERS:
                 category = f"{granularity}_{mechanism}"
                 if url in result[category]:
                     if url_mismatch:
                         result[f"{category}::URL_MISMATCH"].add(url)
+                        result[f"{granularity}::URL_MISMATCH"].add(url)
                     if origin_mismatch:
                         result[f"{category}::ORIGIN_MISMATCH"].add(url)
+                        result[f"{granularity}::ORIGIN_MISMATCH"].add(url)
 
     raw_output_path = join_with_json_path(f"DISAGREEMENT-HEADERS-{LIVE_TABLE_NAME}-{ARCHIVE_TABLE_NAME}.RAW.json")
     with open(raw_output_path, 'w') as file:
@@ -109,7 +111,7 @@ def analyze_headers(targets: list[tuple[int, str, str]]) -> None:
         json.dump(result, file, indent=2, sort_keys=True)
 
 
-def analyze_headers_disagreement_reason(disagreement_file: Path) -> None:
+def analyze_user_agent_sniffing(disagreement_file: Path) -> None:
     """Check if header value inconsistency is due to user agent sniffing."""
     with open(disagreement_file) as file:
         disagreement = json.load(file)
@@ -153,6 +155,37 @@ def analyze_headers_disagreement_reason(disagreement_file: Path) -> None:
     result = {key: len(value) for key, value in result.items()}
     with open(join_with_json_path(f"DISAGREEMENT-UA-HEADERS-{LIVE_TABLE_NAME}-{ARCHIVE_TABLE_NAME}.json"), 'w') as file:
         json.dump(result, file, indent=2, sort_keys=True)
+
+
+def merge_disagreement_reasons(disagreement_file: Path, user_agent_sniffing_file: Path) -> None:
+    with open(disagreement_file) as file:
+        disagreement = defaultdict(set, json.load(file))
+
+    with open(user_agent_sniffing_file) as file:
+        user_agent_sniffing = defaultdict(set, json.load(file))
+
+    for granularity in 'SYNTAX_DIFFERENCE', 'SEMANTICS_DIFFERENCE':
+        disagreement[f"{granularity}::USER_AGENT"] = user_agent_sniffing[f"{granularity}"]
+        disagreement[f"{granularity}::NO_INFORMATION"] = (
+                set(disagreement[f"{granularity}"])
+                - set(disagreement[f"{granularity}::ORIGIN_MISMATCH"])
+                - set(disagreement[f"{granularity}::USER_AGENT"])
+        )
+        for mechanism in SECURITY_MECHANISM_HEADERS:
+            disagreement[f"{granularity}_{mechanism}::USER_AGENT"] = user_agent_sniffing[f"{granularity}_{mechanism}"]
+            disagreement[f"{granularity}_{mechanism}::NO_INFORMATION"] = (
+                    set(disagreement[f"{granularity}_{mechanism}"])
+                    - set(disagreement[f"{granularity}_{mechanism}::ORIGIN_MISMATCH"])
+                    - set(disagreement[f"{granularity}_{mechanism}::USER_AGENT"])
+            )
+
+    raw_output_path = join_with_json_path(f"DISAGREEMENT-HEADERS-{LIVE_TABLE_NAME}-{ARCHIVE_TABLE_NAME}.RAW.json")
+    with open(raw_output_path, 'w') as file:
+        json.dump(disagreement, file, indent=2, sort_keys=True, default=list)
+
+    disagreement = {key: len(value) for key, value in disagreement.items()}
+    with open(join_with_json_path(f"DISAGREEMENT-HEADERS-{LIVE_TABLE_NAME}-{ARCHIVE_TABLE_NAME}.json"), 'w') as file:
+        json.dump(disagreement, file, indent=2, sort_keys=True)
 
 
 def analyze_trackers(targets: list[tuple[int, str, str]]) -> None:
@@ -230,8 +263,13 @@ def analyze_trackers(targets: list[tuple[int, str, str]]) -> None:
 
 def main():
     analyze_headers(get_tranco_data())
-    analyze_headers_disagreement_reason(
-        join_with_json_path(f"DISAGREEMENT-HEADERS-{LIVE_TABLE_NAME}-{ARCHIVE_TABLE_NAME}.RAW.json"))
+    analyze_user_agent_sniffing(
+        join_with_json_path(f"DISAGREEMENT-HEADERS-{LIVE_TABLE_NAME}-{ARCHIVE_TABLE_NAME}.RAW.json")
+    )
+    merge_disagreement_reasons(
+        join_with_json_path(f"DISAGREEMENT-HEADERS-{LIVE_TABLE_NAME}-{ARCHIVE_TABLE_NAME}.RAW.json"),
+        join_with_json_path(f"DISAGREEMENT-UA-HEADERS-{LIVE_TABLE_NAME}-{ARCHIVE_TABLE_NAME}.RAW.json")
+    )
 
     analyze_trackers(get_tranco_data())
 
