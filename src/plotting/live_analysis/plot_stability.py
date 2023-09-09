@@ -17,10 +17,10 @@ from plotting.plotting_utils import HEADER_ABBREVIATION, STYLE, COLORS, latexify
 
 
 @latexify(xtick_minor_visible=True)
-def plot_live(input_path: Path,
-              start: date_type = get_min_timestamp(LIVE_TABLE_NAME).date(),
-              end: date_type = get_min_timestamp(LIVE_TABLE_NAME).date() + timedelta(30)) -> None:
-    """Plot the analyzed live data in `input_path` between `start` and `end` and save the figure at `output_path`."""
+def plot_headers_stability(input_path: Path,
+                           start: date_type = get_min_timestamp(LIVE_TABLE_NAME).date(),
+                           end: date_type = get_min_timestamp(LIVE_TABLE_NAME).date() + timedelta(30)) -> None:
+    """Plot the stability of security header values of live data in `input_path` between `start` and `end`."""
     assert start <= end
 
     with open(input_path) as file:
@@ -41,7 +41,45 @@ def plot_live(input_path: Path,
     axes.yaxis.set_major_formatter(PercentFormatter(xmax=1))
     axes.set_xlabel('Days')
     axes.set_ylabel('Stable domains')
-    axes.set_title(f"{'Syntactic' if 'normalize' in input_path.name else 'Semantic'} stability")
+
+    axes.figure.savefig(json_to_plots_path(input_path), bbox_inches='tight', dpi=300)
+
+    axes.figure.show()
+    plt.close()
+
+
+@latexify(xtick_minor_visible=True)
+def plot_js_stability(input_path: Path,
+                      start: date_type = get_min_timestamp(LIVE_TABLE_NAME).date(),
+                      end: date_type = get_min_timestamp(LIVE_TABLE_NAME).date() + timedelta(30)) -> None:
+    """Plot the stability of JS inclusions of live data in `input_path` between `start` and `end`."""
+    assert start <= end
+
+    with open(input_path) as file:
+        results = json.load(file)
+
+    df = DataFrame()
+
+    for column in 'urls', 'hosts', 'sites':
+        total = sum(results[tid]['INCLUDES_SCRIPTS'] for tid in results)
+        df[column] = [
+            sum(results[tid][column][str(date)] for tid in results if results[tid]['INCLUDES_SCRIPTS']) / total
+            for date in date_range(start, end)
+        ]
+
+    total_including_trackers = sum(results[tid]['INCLUDES_TRACKERS'] for tid in results)
+    df['trackers'] = [
+        sum(results[tid]['trackers'][str(date)] for tid in results if
+            results[tid]['INCLUDES_TRACKERS']) / total_including_trackers
+        for date in date_range(start, end)
+    ]
+
+    axes = df.plot(style=STYLE, color=COLORS, grid=True)
+    axes.xaxis.get_minor_ticks()[0].set_visible(False)
+    axes.xaxis.get_minor_ticks()[-1].set_visible(False)
+    axes.yaxis.set_major_formatter(PercentFormatter(xmax=1))
+    axes.set_xlabel('Days')
+    axes.set_ylabel('Stable domains')
 
     axes.figure.savefig(json_to_plots_path(input_path), bbox_inches='tight', dpi=300)
 
@@ -53,8 +91,8 @@ def plot_live(input_path: Path,
 def plot_snapshot_stability(input_path: Path,
                             start: datetime = get_min_timestamp(ARCHIVE_TABLE_NAME),
                             end: datetime = get_max_timestamp(ARCHIVE_TABLE_NAME),
-                            n: int = 15) -> None:
-    """Plot the analyzed archive data in `input_path` between `start` and `end` and save the figure at `output_path`."""
+                            n: int = 11) -> None:
+    """Plot the stability of archived snapshots in `input_path` between `start` and `end`."""
     assert start <= end
 
     with open(input_path) as file:
@@ -80,7 +118,11 @@ def plot_snapshot_stability(input_path: Path,
         axes = current[['Deletions', 'Updates']].plot.bar(color=COLORS[1:], grid=True, ax=axes, rot=0)
         axes.set_xlabel('Days')
         axes.set_ylabel('Affected domains')
+        axes.set_yticks(range(0, 11_001, 1000))
+        axes.set_ylim(top=11_000)
         axes.set_title(current_timestamp.date())
+        axes.legend(loc='lower right')
+
         axes.figure.savefig(json_to_plots_path(input_path.with_suffix(f".{current_timestamp.date()}.json")),
                             bbox_inches='tight', dpi=300)
 
@@ -90,6 +132,9 @@ def plot_snapshot_stability(input_path: Path,
         for column in data.columns:
             for idx, row in current.iterrows():
                 data.at[idx, column].append(row[column])
+
+    if start == end:
+        return
 
     for column in data.columns:
         axes = data.explode(column).reset_index().pivot(columns='index', values=column).astype(float).plot.box(
@@ -102,8 +147,7 @@ def plot_snapshot_stability(input_path: Path,
             # showfliers=False
         )
         axes.set_xlabel('Days')
-        axes.set_ylabel('Affected domains')
-        axes.set_title(column)
+        axes.set_ylabel(column)
 
         axes.figure.savefig(json_to_plots_path(input_path.with_suffix(f".{column}.json")), bbox_inches='tight', dpi=300)
 
@@ -138,9 +182,10 @@ def plot_drifts(input_path: Path) -> None:
 @latexify()
 def main():
     # LIVE DATA
-    plot_live(join_with_json_path(f"STABILITY-{LIVE_TABLE_NAME}-normalize_headers.json"))
+    plot_headers_stability(join_with_json_path(f"STABILITY-{LIVE_TABLE_NAME}-normalize_headers.json"))
+    plot_headers_stability(join_with_json_path(f"STABILITY-{LIVE_TABLE_NAME}-classify_headers.json"))
 
-    plot_live(join_with_json_path(f"STABILITY-{LIVE_TABLE_NAME}-classify_headers.json"))
+    plot_js_stability(join_with_json_path(f"STABILITY-{LIVE_TABLE_NAME}-JS.json"))
 
     # ARCHIVE DATA
     plot_snapshot_stability(join_with_json_path(f"STABILITY-{ARCHIVE_TABLE_NAME}-snapshots.json"))
