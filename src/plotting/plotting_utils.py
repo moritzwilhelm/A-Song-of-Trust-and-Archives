@@ -8,11 +8,11 @@ import seaborn as sns
 from configs.crawling import TIMESTAMPS
 
 HEADER_ABBREVIATION = {
+    'Strict-Transport-Security': 'HSTS',
     'X-Frame-Options': 'XFO',
     'Content-Security-Policy': 'CSP',
-    'Strict-Transport-Security': 'HSTS',
-    'Referrer-Policy': 'RP',
     'Permissions-Policy': 'PP',
+    'Referrer-Policy': 'RP',
     'Cross-Origin-Opener-Policy': 'COOP',
     'Cross-Origin-Resource-Policy': 'CORP',
     'Cross-Origin-Embedder-Policy': 'COEP'
@@ -53,6 +53,7 @@ def _latexify(fig_width: float | None = None,
         'text.usetex': True,
         'font.family': 'serif',
         'font.size': fontsize,
+        'figure.autolayout': True,
         'figure.figsize': [fig_width, fig_height],
         'axes.labelsize': fontsize,
         'axes.titlesize': fontsize,

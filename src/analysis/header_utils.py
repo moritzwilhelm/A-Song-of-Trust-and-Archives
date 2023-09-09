@@ -6,7 +6,7 @@ from typing import NamedTuple
 from requests.structures import CaseInsensitiveDict
 from urllib3.util import parse_url
 
-from analysis.security_enums import XFO, CspXSS, CspFA, CspTLS, HSTSAge, HSTSSub, HSTSPreload, RP, COOP, CORP, COEP, \
+from analysis.security_enums import HSTSAge, HSTSSub, HSTSPreload, XFO, CspXSS, CspFA, CspTLS, RP, COOP, CORP, COEP, \
     max_enum
 
 Headers = CaseInsensitiveDict
@@ -47,6 +47,9 @@ def parse_origin(url: str) -> Origin:
 
 def normalize_headers(headers: Headers, _: Origin | None = None) -> Headers:
     return Headers({
+        'Strict-Transport-Security': (
+            normalize_hsts(headers['Strict-Transport-Security'])
+            if 'Strict-Transport-Security' in headers else '<MISSING>'),
         'X-Frame-Options': (
             normalize_xfo(headers['X-Frame-Options'])
             if 'X-Frame-Options' in headers else '<MISSING>'),
@@ -65,15 +68,12 @@ def normalize_headers(headers: Headers, _: Origin | None = None) -> Headers:
         'Content-Security-Policy': (
             normalize_csp(headers['Content-Security-Policy'])
             if 'Content-Security-Policy' in headers else '<MISSING>'),
-        'Strict-Transport-Security': (
-            normalize_hsts(headers['Strict-Transport-Security'])
-            if 'Strict-Transport-Security' in headers else '<MISSING>'),
-        'Referrer-Policy': (
-            normalize_referrer_policy(headers['Referrer-Policy'])
-            if 'Referrer-Policy' in headers else '<MISSING>'),
         'Permissions-Policy': (
             normalize_permissions_policy(headers['Permissions-Policy'])
             if 'Permissions-Policy' in headers else '<MISSING>'),
+        'Referrer-Policy': (
+            normalize_referrer_policy(headers['Referrer-Policy'])
+            if 'Referrer-Policy' in headers else '<MISSING>'),
         'Cross-Origin-Opener-Policy': (
             normalize_coop(headers['Cross-Origin-Opener-Policy'])
             if 'Cross-Origin-Opener-Policy' in headers else '<MISSING>'),
@@ -88,18 +88,69 @@ def normalize_headers(headers: Headers, _: Origin | None = None) -> Headers:
 
 def classify_headers(headers: Headers, origin: Origin | None = None) -> Headers:
     return Headers({
+        'Strict-Transport-Security': classify_hsts(headers.get('Strict-Transport-Security', '')),
         'X-Frame-Options': classify_xfo(headers.get('X-Frame-Options', '')),
         'Content-Security-Policy::XSS': classify_csp_xss(headers.get('Content-Security-Policy', '')),
         'Content-Security-Policy::FA': classify_csp_fa(headers.get('Content-Security-Policy', ''), origin),
         'Content-Security-Policy::TLS': classify_csp_tls(headers.get('Content-Security-Policy', '')),
         'Content-Security-Policy': classify_csp(headers.get('Content-Security-Policy', ''), origin),
-        'Strict-Transport-Security': classify_hsts(headers.get('Strict-Transport-Security', '')),
-        'Referrer-Policy': classify_referrer_policy(headers.get('Referrer-Policy', '')),
         'Permissions-Policy': classify_permissions_policy(headers.get('Permissions-Policy', ''), origin),
+        'Referrer-Policy': classify_referrer_policy(headers.get('Referrer-Policy', '')),
         'Cross-Origin-Opener-Policy': classify_coop(headers.get('Cross-Origin-Opener-Policy', '')),
         'Cross-Origin-Resource-Policy': classify_corp(headers.get('Cross-Origin-Resource-Policy', '')),
         'Cross-Origin-Embedder-Policy': classify_coep(headers.get('Cross-Origin-Embedder-Policy', ''))
     })
+
+
+# ----------------------------------------------------------------------------
+# Strict-Transport-Security
+
+def normalize_hsts(value: str) -> str:
+    # according to RFC 6797 only the first HSTS header is considered
+    value = value.lower().split(',')[0]
+    tokens = sorted(token.strip() for token in value.split(';'))
+    return ';'.join(tokens)
+
+
+def classify_hsts_age(max_age: int | None) -> HSTSAge:
+    if max_age is None:
+        return HSTSAge.ABSENT
+    elif max_age <= 0:
+        return HSTSAge.DISABLED
+    elif max_age < 60 * 60 * 24 * 365:
+        return HSTSAge.LOW
+    else:
+        return HSTSAge.BIG
+
+
+def classify_hsts(value: str) -> tuple[HSTSAge, HSTSSub, HSTSPreload]:
+    max_age = None
+    include_sub_domains = False
+    preload = False
+    seen_directives = set()
+
+    for token in normalize_hsts(value).split(';'):
+        directive = token.split('=')[0]
+        if directive in seen_directives:
+            # all directives MUST appear only once (https://datatracker.ietf.org/doc/html/rfc6797#section-6.1)
+            return HSTSAge.ABSENT, HSTSSub.ABSENT, HSTSPreload.ABSENT
+
+        match directive:
+            case 'max-age':
+                if (max_age_match := re.match(r'max-age=("?)(\d+)\1$', token)) is None:
+                    return HSTSAge.ABSENT, HSTSSub.ABSENT, HSTSPreload.ABSENT
+                max_age = int(max_age_match.group(2))
+            case 'includesubdomains':
+                include_sub_domains = True
+            case 'preload':
+                preload = True
+
+        seen_directives.add(directive)
+
+    return (classified_max_age := classify_hsts_age(max_age),
+            # includeSubDomains directive's presence is ignored when max-age is absent or zero
+            HSTSSub(include_sub_domains and classified_max_age not in (HSTSAge.ABSENT, HSTSAge.DISABLED)),
+            HSTSPreload(preload and include_sub_domains and classified_max_age is HSTSAge.BIG))
 
 
 # ----------------------------------------------------------------------------
@@ -250,54 +301,44 @@ def classify_csp(value: str, origin: Origin) -> tuple[CspXSS, CspFA, CspTLS]:
 
 
 # ----------------------------------------------------------------------------
-# Strict-Transport-Security
+# Permissions-Policy
 
-def normalize_hsts(value: str) -> str:
-    # according to RFC 6797 only the first HSTS header is considered
-    value = value.lower().split(',')[0]
-    tokens = sorted(token.strip() for token in value.split(';'))
-    return ';'.join(tokens)
+def normalize_permissions_policy(value: str) -> str:
+    directives = []
+    for directive in value.lower().split(','):
+        match = re.match(r"([^=]+)=(\*|\((.*)\))", directive.strip())
+        if match is not None:
+            name, allowlist, content = match.groups()
+            if allowlist != '*':
+                content = set(content.strip().split())
+                allowlist = f"({' '.join(sorted(content))})"
 
-
-def classify_hsts_age(max_age: int | None) -> HSTSAge:
-    if max_age is None:
-        return HSTSAge.ABSENT
-    elif max_age <= 0:
-        return HSTSAge.DISABLED
-    elif max_age < 60 * 60 * 24 * 365:
-        return HSTSAge.LOW
-    else:
-        return HSTSAge.BIG
+            directives.append(f"{name}={allowlist}")
+    return ','.join(sorted(directives))
 
 
-def classify_hsts(value: str) -> tuple[HSTSAge, HSTSSub, HSTSPreload]:
-    max_age = None
-    include_sub_domains = False
-    preload = False
-    seen_directives = set()
+# ASSUMPTION: All features have a default value of *
+def classify_permissions_policy(value: str, origin: Origin) -> str:
+    directives = []
+    for directive in value.lower().split(','):
+        match = re.match(r"([^=]+)=\((.*)\)", directive.strip())
+        if match is not None:
+            name = match.group(1)
+            content = set(match.group(2).strip().split())
+            if '*' in content:
+                continue
 
-    for token in normalize_hsts(value).split(';'):
-        directive = token.split('=')[0]
-        if directive in seen_directives:
-            # all directives MUST appear only once (https://datatracker.ietf.org/doc/html/rfc6797#section-6.1)
-            return HSTSAge.ABSENT, HSTSSub.ABSENT, HSTSPreload.ABSENT
+            secure_origin = f"https://{origin.host}" if origin.port is None else f"https://{origin.host}:{origin.port}"
+            domain = origin.host if origin.port is None else f"{origin.host}:{origin.port}"
+            self_expressions = {f'"{origin}"', f'"{origin}/"', f'"{secure_origin}"', f'"{secure_origin}/"',
+                                f'"{domain}"', f'"{domain}/"'}
+            if any(expression in content for expression in self_expressions):
+                content -= self_expressions
+                content.add('self')
 
-        match directive:
-            case 'max-age':
-                if (max_age_match := re.match(r'max-age=("?)(\d+)\1$', token)) is None:
-                    return HSTSAge.ABSENT, HSTSSub.ABSENT, HSTSPreload.ABSENT
-                max_age = int(max_age_match.group(2))
-            case 'includesubdomains':
-                include_sub_domains = True
-            case 'preload':
-                preload = True
-
-        seen_directives.add(directive)
-
-    return (classified_max_age := classify_hsts_age(max_age),
-            # includeSubDomains directive's presence is ignored when max-age is absent or zero
-            HSTSSub(include_sub_domains and classified_max_age not in (HSTSAge.ABSENT, HSTSAge.DISABLED)),
-            HSTSPreload(preload and include_sub_domains and classified_max_age is HSTSAge.BIG))
+            allowlist = f"({' '.join(sorted(content))})"
+            directives.append(f"{name}={allowlist}")
+    return ','.join(sorted(directives))
 
 
 # ----------------------------------------------------------------------------
@@ -344,47 +385,6 @@ def classify_referrer_policy(value: str) -> RP:
             return RP.STRICT_ORIGIN
         case 'strict-origin-when-cross-origin' | '':
             return RP.STRICT_ORIGIN_WHEN_CROSS_ORIGIN
-
-
-# ----------------------------------------------------------------------------
-# Permissions-Policy
-
-def normalize_permissions_policy(value: str) -> str:
-    directives = []
-    for directive in value.lower().split(','):
-        match = re.match(r"([^=]+)=(\*|\((.*)\))", directive.strip())
-        if match is not None:
-            name, allowlist, content = match.groups()
-            if allowlist != '*':
-                content = set(content.strip().split())
-                allowlist = f"({' '.join(sorted(content))})"
-
-            directives.append(f"{name}={allowlist}")
-    return ','.join(sorted(directives))
-
-
-# ASSUMPTION: All features have a default value of *
-def classify_permissions_policy(value: str, origin: Origin) -> str:
-    directives = []
-    for directive in value.lower().split(','):
-        match = re.match(r"([^=]+)=\((.*)\)", directive.strip())
-        if match is not None:
-            name = match.group(1)
-            content = set(match.group(2).strip().split())
-            if '*' in content:
-                continue
-
-            secure_origin = f"https://{origin.host}" if origin.port is None else f"https://{origin.host}:{origin.port}"
-            domain = origin.host if origin.port is None else f"{origin.host}:{origin.port}"
-            self_expressions = {f'"{origin}"', f'"{origin}/"', f'"{secure_origin}"', f'"{secure_origin}/"',
-                                f'"{domain}"', f'"{domain}/"'}
-            if any(expression in content for expression in self_expressions):
-                content -= self_expressions
-                content.add('self')
-
-            allowlist = f"({' '.join(sorted(content))})"
-            directives.append(f"{name}={allowlist}")
-    return ','.join(sorted(directives))
 
 
 # ----------------------------------------------------------------------------

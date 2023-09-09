@@ -9,6 +9,23 @@ def max_enum(first: E, second: E) -> E:
     return first if first.value >= second.value else second
 
 
+class HSTSAge(Enum):
+    DISABLED = -1
+    ABSENT = 0
+    LOW = 1
+    BIG = 2
+
+
+class HSTSSub(Enum):
+    ABSENT = 0
+    ACTIVE = 1
+
+
+class HSTSPreload(Enum):
+    ABSENT = 0
+    ACTIVE = 1
+
+
 class XFO(Enum):
     UNSAFE = 0
     SAMEORIGIN = 1
@@ -31,23 +48,6 @@ class CspTLS(Enum):
     UNSAFE = 0
     BLOCK_ALL_MIXED_CONTENT = 1
     UPGRADE_INSECURE_REQUESTS = 2
-
-
-class HSTSAge(Enum):
-    DISABLED = -1
-    ABSENT = 0
-    LOW = 1
-    BIG = 2
-
-
-class HSTSSub(Enum):
-    ABSENT = 0
-    ACTIVE = 1
-
-
-class HSTSPreload(Enum):
-    ABSENT = 0
-    ACTIVE = 1
 
 
 class RP(Enum):
