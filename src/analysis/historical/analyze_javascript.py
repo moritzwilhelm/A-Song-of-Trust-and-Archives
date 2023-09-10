@@ -11,7 +11,7 @@ from configs.analysis import MEMENTO_HEADER
 from configs.crawling import TIMESTAMPS
 from configs.database import get_database_cursor
 from configs.utils import join_with_json_path, get_tranco_data, compute_tolerance_window, get_tracking_domains
-from data_collection.collect_archive_data import TABLE_NAME
+from data_collection.collect_archive_data import TABLE_NAME as ARCHIVE_TABLE_NAME
 
 
 def analyze_inclusions() -> None:
@@ -24,7 +24,7 @@ def analyze_inclusions() -> None:
                     SELECT JSONB_ARRAY_LENGTH(relevant_sources) AS urls_count, 
                            JSONB_ARRAY_LENGTH(hosts) AS hosts_count,
                            JSONB_ARRAY_LENGTH(sites) AS sites_count
-                    FROM {TABLE_NAME} JOIN {METADATA_TABLE_NAME} USING (content_hash)
+                    FROM {ARCHIVE_TABLE_NAME} JOIN {METADATA_TABLE_NAME} USING (content_hash)
                     WHERE timestamp=%s AND (headers->>%s)::TIMESTAMPTZ BETWEEN %s AND %s
                 ) AS INCLUSIONS
             """, (timestamp, MEMENTO_HEADER.lower(), *compute_tolerance_window(timestamp, timedelta(weeks=6))))
@@ -36,23 +36,23 @@ def analyze_inclusions() -> None:
                 'sites': sites_count
             }
 
-    with open(join_with_json_path(f"SCRIPT-INCLUSIONS-{TABLE_NAME}.json"), 'w') as file:
+    with open(join_with_json_path(f"JAVASCRIPT-{ARCHIVE_TABLE_NAME}.json"), 'w') as file:
         json.dump(inclusions, file, indent=2, sort_keys=True)
 
 
-def analyze_inclusion_bounds(urls: list[tuple[int, str, str]], proximity_sets_path: Path) -> None:
-    """Analyze the number of script inclusions per proximity set by computing the union and intersection of sources."""
-    with open(proximity_sets_path) as file:
-        proximity_sets = json.load(file, cls=HeadersDecoder)
+def analyze_inclusion_bounds(urls: list[tuple[int, str, str]], neighborhoods_path: Path) -> None:
+    """Analyze the number of script inclusions per neighborhood by computing the union and intersection of sources."""
+    with open(neighborhoods_path) as file:
+        neighborhoods = json.load(file, cls=HeadersDecoder)
 
     result = defaultdict(lambda: defaultdict(dict))
     for tid, _, _ in tqdm(urls):
         for timestamp in TIMESTAMPS:
-            if len(proximity_sets[str(tid)][str(timestamp)]) < 2:
+            if len(neighborhoods[str(tid)][str(timestamp)]) < 2:
                 continue
 
             scripts = defaultdict(list)
-            for *_, relevant_sources, hosts, sites in proximity_sets[str(tid)][str(timestamp)]:
+            for *_, relevant_sources, hosts, sites in neighborhoods[str(tid)][str(timestamp)]:
                 scripts['urls'].append(set(relevant_sources))
                 scripts['hosts'].append(set(hosts))
                 scripts['sites'].append(set(sites))
@@ -63,25 +63,25 @@ def analyze_inclusion_bounds(urls: list[tuple[int, str, str]], proximity_sets_pa
                     'Intersection': len(set.intersection(*scripts[granularity])) if scripts[granularity] else 0
                 }
 
-    with open(join_with_json_path(f"SCRIPT-INCLUSIONS-{proximity_sets_path.name}"), 'w') as file:
+    with open(join_with_json_path(f"JAVASCRIPT-{neighborhoods_path.name}"), 'w') as file:
         json.dump(result, file, indent=2, sort_keys=True)
 
 
-def analyze_trackers(urls: list[tuple[int, str, str]], proximity_sets_path: Path) -> None:
-    """Analyze the number of injected trackers inclusions per proximity set."""
-    with open(proximity_sets_path) as file:
-        proximity_sets = json.load(file, cls=HeadersDecoder)
+def analyze_trackers(urls: list[tuple[int, str, str]], neighborhoods_path: Path) -> None:
+    """Analyze the number of injected trackers inclusions per neighborhood."""
+    with open(neighborhoods_path) as file:
+        neighborhoods = json.load(file, cls=HeadersDecoder)
 
     tracking_domains = get_tracking_domains()
 
     result = defaultdict(dict)
     for tid, _, _ in tqdm(urls):
         for timestamp in TIMESTAMPS:
-            if len(proximity_sets[str(tid)][str(timestamp)]) < 2:
+            if len(neighborhoods[str(tid)][str(timestamp)]) < 2:
                 continue
 
             trackers = []
-            for *_, hosts, sites in proximity_sets[str(tid)][str(timestamp)]:
+            for *_, hosts, sites in neighborhoods[str(tid)][str(timestamp)]:
                 trackers.append(
                     set(host for host in hosts if host in tracking_domains) |
                     set(site for site in sites if site in tracking_domains)
@@ -92,14 +92,14 @@ def analyze_trackers(urls: list[tuple[int, str, str]], proximity_sets_path: Path
                 'Intersection': sorted(set.intersection(*trackers)) if trackers else []
             }
 
-    with open(join_with_json_path(f"TRACKERS-{proximity_sets_path.name}"), 'w') as file:
+    with open(join_with_json_path(f"TRACKERS-{neighborhoods_path.name}"), 'w') as file:
         json.dump(result, file, indent=2, sort_keys=True)
 
 
 def main():
     analyze_inclusions()
-    analyze_inclusion_bounds(get_tranco_data(), join_with_json_path(f"PROXIMITY-SETS-{10}.json"))
-    analyze_trackers(get_tranco_data(), join_with_json_path(f"PROXIMITY-SETS-{10}.json"))
+    analyze_inclusion_bounds(get_tranco_data(), join_with_json_path(f"NEIGHBORHOODS.{10}.json"))
+    analyze_trackers(get_tranco_data(), join_with_json_path(f"NEIGHBORHOODS.{10}.json"))
 
 
 if __name__ == '__main__':

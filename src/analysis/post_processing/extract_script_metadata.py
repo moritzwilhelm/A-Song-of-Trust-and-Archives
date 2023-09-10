@@ -10,7 +10,7 @@ from tldextract import extract
 
 from configs.database import STORAGE, get_database_cursor
 from data_collection.collect_archive_data import TABLE_NAME as ARCHIVE_TABLE_NAME
-from data_collection.collect_archive_proximity_sets import TABLE_NAME as PROXIMITY_SETS_TABLE_NAME
+from data_collection.collect_archive_neighborhoods import TABLE_NAME as NEIGHBORHOODS_TABLE_NAME
 from data_collection.collect_live_data import TABLE_NAME as LIVE_TABLE_NAME
 from data_collection.crawling import partition_jobs
 
@@ -29,7 +29,7 @@ class AnalysisJob(NamedTuple):
 
 
 def setup_metadata_table() -> None:
-    """Create proximity set candidates database table and create relevant indexes."""
+    """Create HTML script metadata database table and create relevant indexes."""
     with get_database_cursor() as cursor:
         cursor.execute(f"""
             CREATE TABLE IF NOT EXISTS {METADATA_TABLE_NAME} (
@@ -108,7 +108,7 @@ def main():
     jobs = [
         *prepare_jobs(LIVE_TABLE_NAME, live_sources_filter),
         *prepare_jobs(ARCHIVE_TABLE_NAME),
-        *prepare_jobs(PROXIMITY_SETS_TABLE_NAME)
+        *prepare_jobs(NEIGHBORHOODS_TABLE_NAME)
     ]
     run_jobs(jobs)
 
