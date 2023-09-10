@@ -8,7 +8,7 @@ from analysis.live.analyze_stability import ARCHIVE_TABLE_NAME as ARCHIVE_TABLE_
 from configs.database import STORAGE, get_database_cursor
 from configs.files.random_sample_tranco import RANDOM_SAMPLING_TABLE_NAME
 from data_collection.collect_archive_data import TABLE_NAME as ARCHIVE_TABLE_NAME
-from data_collection.collect_archive_proximity_sets import TABLE_NAME as PROXIMITY_SETS_TABLE_NAME
+from data_collection.collect_archive_neighborhoods import TABLE_NAME as NEIGHBORHOODS_TABLE_NAME
 from data_collection.collect_live_data import TABLE_NAME as LIVE_TABLE_NAME
 from data_collection.crawling import normalize_archived_content, partition_jobs
 
@@ -86,7 +86,7 @@ def main():
         *prepare_jobs(RANDOM_SAMPLING_TABLE_NAME, True),
         *prepare_jobs(f"{ARCHIVE_TABLE_NAME}_FOR_COMPARISON", True),
         *prepare_jobs(ARCHIVE_TABLE_FOR_STABILITY, True),
-        *prepare_jobs(PROXIMITY_SETS_TABLE_NAME, True)
+        *prepare_jobs(NEIGHBORHOODS_TABLE_NAME, True)
     ]
     run_jobs(jobs)
 
