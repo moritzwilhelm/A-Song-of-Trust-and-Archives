@@ -47,19 +47,19 @@ def compute_information_gain(training_data: DataFrame, target_values: Series) ->
     return information_gain
 
 
-def attribute_differences(urls: list[tuple[int, str, str]], proximity_sets_path: Path) -> None:
-    """Detect the best features to reduce the Gini impurity per proximity set."""
-    with open(proximity_sets_path) as file:
-        proximity_sets = json.load(file, cls=HeadersDecoder)
+def attribute_differences(urls: list[tuple[int, str, str]], neighborhoods_path: Path) -> None:
+    """Detect the best features to reduce the Gini impurity per neighborhood."""
+    with open(neighborhoods_path) as file:
+        neighborhoods = json.load(file, cls=HeadersDecoder)
 
     result = {security_mechanism: Counter() for security_mechanism in SECURITY_MECHANISM_HEADERS}
     for tid, _, _ in tqdm(urls):
         for timestamp in TIMESTAMPS:
-            proximity_set = proximity_sets[str(tid)][str(timestamp)]
-            if len(proximity_set) < 2:
+            neighborhood = neighborhoods[str(tid)][str(timestamp)]
+            if len(neighborhood) < 2:
                 continue
 
-            df = DataFrame(proximity_set,
+            df = DataFrame(neighborhood,
                            columns=['archived_timestamp', 'headers', 'end_url', 'status_code', 'contributor',
                                     'relevant_sources', 'hosts', 'sites'])
             df['origin'] = df['end_url'].apply(parse_origin)
@@ -93,12 +93,12 @@ def attribute_differences(urls: list[tuple[int, str, str]], proximity_sets_path:
                     result[security_mechanism]['None'] += 1
                 result[security_mechanism]['total'] += 1
 
-    with open(join_with_json_path(f"FEATURES-{proximity_sets_path.name}"), 'w') as file:
+    with open(join_with_json_path(f"FEATURES-{neighborhoods_path.name}"), 'w') as file:
         json.dump(result, file, indent=2, sort_keys=True)
 
 
 def main():
-    attribute_differences(get_tranco_data(), join_with_json_path(f"PROXIMITY-SETS-{10}.json"))
+    attribute_differences(get_tranco_data(), join_with_json_path(f"NEIGHBORHOODS.{10}.json"))
 
 
 if __name__ == '__main__':
