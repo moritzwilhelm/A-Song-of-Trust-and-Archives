@@ -9,12 +9,12 @@ from requests import JSONDecodeError, Session
 from configs.analysis import INTERNET_ARCHIVE_SOURCE_HEADER
 from configs.crawling import INTERNET_ARCHIVE_METADATA_API
 from configs.database import get_database_cursor
-from data_collection.collect_archive_proximity_sets import TABLE_NAME as PROXIMITY_SETS_TABLE_NAME
+from data_collection.collect_archive_neighborhoods import TABLE_NAME as NEIGHBORHOODS_TABLE_NAME
 from data_collection.crawling import partition_jobs, crawl, CrawlingException
 
 WORKERS = 8
 
-METADATA_TABLE_NAME = 'historical_data_metadata'
+METADATA_TABLE_NAME = 'HISTORICAL_DATA_METADATA'
 
 
 class MetadataJob(NamedTuple):
@@ -48,7 +48,7 @@ def get_archive_sources() -> list[str]:
     with get_database_cursor(autocommit=True) as cursor:
         cursor.execute(f"""
             SELECT DISTINCT SPLIT_PART(headers->>%s, '/', 1)
-            FROM {PROXIMITY_SETS_TABLE_NAME}
+            FROM {NEIGHBORHOODS_TABLE_NAME}
             WHERE headers->>%s IS NOT NULL
         """, (INTERNET_ARCHIVE_SOURCE_HEADER.lower(), INTERNET_ARCHIVE_SOURCE_HEADER.lower()))
         return [source for source, in cursor.fetchall()]

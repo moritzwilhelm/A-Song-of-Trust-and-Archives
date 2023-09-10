@@ -8,7 +8,7 @@ from requests import get
 from configs.crawling import TIMESTAMPS, TODAY, SOCKS_PROXIES
 from configs.utils import date_range
 from data_collection.collect_archive_data import prepare_jobs as prepare_archive_jobs, run_jobs as run_archive_jobs
-from data_collection.collect_archive_proximity_sets import crawl_web_archive_cdx, crawl_proximity_sets
+from data_collection.collect_archive_neighborhoods import crawl_web_archive_cdx, crawl_neighborhoods
 from data_collection.collect_contributors import get_archive_sources, prepare_jobs as prepare_metadata_jobs, \
     run_jobs as run_metadata_jobs
 from data_collection.crawling import partition_jobs
@@ -40,7 +40,7 @@ def parse_args() -> Arguments:
     """Parse command line arguments for starting crawlers distributed over different proxies."""
     parser = ArgumentParser(description='Start archive crawlers and distribute over proxies.')
     parser.add_argument('crawl_type', metavar='<crawl_type>',
-                        choices=['test_proxies', 'proximity_set_indexes', 'proximity_sets', 'daily_archive',
+                        choices=['test_proxies', 'neighborhood_indexes', 'neighborhoods', 'daily_archive',
                                  'archive_metadata'],
                         help='the type of crawl to start')
     return parser.parse_args()
@@ -81,16 +81,16 @@ def crawl_web_archive_cdx_worker(timestamps: list[datetime], proxies: dict[str, 
     crawl_web_archive_cdx(timestamps=timestamps, proxies=proxies)
 
 
-def start_collect_archive_proximity_set_indexes(configs: list[dict[str, str] | None]) -> None:
+def start_collect_archive_neighborhood_indexes(configs: list[dict[str, str] | None]) -> None:
     """Start crawling the Internet Archive CDX server with the provided set of proxies."""
     with NoDaemonPool(len(configs)) as nd_pool:
         nd_pool.starmap(crawl_web_archive_cdx_worker, zip(partition_jobs(list(TIMESTAMPS), len(configs)), configs))
 
 
-def start_collect_archive_proximity_sets(configs: list[dict[str, str] | None]) -> None:
+def start_collect_archive_neighborhoods(configs: list[dict[str, str] | None]) -> None:
     """Start crawling the Internet Archive CDX server with the provided set of proxies."""
     with NoDaemonPool(len(configs)) as nd_pool:
-        nd_pool.starmap(crawl_proximity_sets, zip(partition_jobs(list(TIMESTAMPS), len(configs)), configs))
+        nd_pool.starmap(crawl_neighborhoods, zip(partition_jobs(list(TIMESTAMPS), len(configs)), configs))
 
 
 def crawl_daily_web_archive_worker(timestamps: list[datetime], proxies: dict[str, str] | None) -> None:
@@ -130,10 +130,10 @@ def main():
         match args.crawl_type:
             case 'test_proxies':
                 test_socks_proxies()
-            case 'proximity_set_indexes':
-                start_collect_archive_proximity_set_indexes(proxy_configs)
-            case 'proximity_sets':
-                start_collect_archive_proximity_sets(proxy_configs)
+            case 'neighborhood_indexes':
+                start_collect_archive_neighborhood_indexes(proxy_configs)
+            case 'neighborhoods':
+                start_collect_archive_neighborhoods(proxy_configs)
             case 'daily_archive':
                 start_collect_daily_archive_data(proxy_configs)
             case 'archive_metadata':

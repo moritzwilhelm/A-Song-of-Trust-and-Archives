@@ -1,5 +1,6 @@
 from collections import defaultdict
 from datetime import datetime, timedelta, UTC
+from functools import partial
 from heapq import nsmallest
 from itertools import chain
 from multiprocessing import Pool
@@ -19,8 +20,8 @@ from data_collection.crawling import setup, reset_failed_archive_crawls, partiti
 
 CANDIDATES_WORKERS = 2
 
-TABLE_NAME = 'HISTORICAL_DATA_PROXIMITY_SETS'
-CANDIDATES_TABLE_NAME = 'PROXIMITY_SET_CANDIDATES'
+TABLE_NAME = 'HISTORICAL_DATA_NEIGHBORHOODS'
+CANDIDATES_TABLE_NAME = 'NEIGHBORHOOD_CANDIDATES'
 
 CDX_REQUEST = 'https://web.archive.org/cdx/search/cdx' + \
               '?url={url}&output=json&fl=timestamp&filter=!statuscode:3..&from={from_timestamp}&to={to_timestamp}'
@@ -35,8 +36,8 @@ class CdxJob(NamedTuple):
     proxies: dict[str, str] | None = None
 
 
-def setup_candidates_lists_table() -> None:
-    """Create proximity set candidates database table and create relevant indexes."""
+def setup_candidates_table() -> None:
+    """Create neighborhood candidates database table and create relevant indexes."""
     with get_database_cursor() as cursor:
         cursor.execute(f"""
             CREATE TABLE IF NOT EXISTS {CANDIDATES_TABLE_NAME} (
@@ -64,8 +65,8 @@ def reset_failed_cdx_crawls() -> dict[datetime, set[int]]:
         return defaultdict(set, ((timestamp, set(ids)) for timestamp, ids in cursor.fetchall()))
 
 
-def proximity_set_window_centers(timestamp: datetime) -> Generator[datetime, None, None]:
-    """Yield all 1-week proximity set window base timestamps within the 12-week snapshot timeframe."""
+def neighborhood_window_centers(timestamp: datetime) -> Generator[datetime, None, None]:
+    """Yield all 1-week neighborhood window base timestamps within the 12-week snapshot timeframe."""
     yield timestamp
 
     for i in range(1, 42):
@@ -78,7 +79,7 @@ def find_candidates(url: str,
                     n: int = 10,
                     proxies: dict[str, str] | None = None,
                     session: Session | None = None) -> list[str]:
-    """Collect the `n` best candidates for the proximity set of (`url`, `timestamp`)."""
+    """Collect the `n` best candidates for the neighborhood of (`url`, `timestamp`)."""
     candidates = []
     left_limit, right_limit = compute_tolerance_window(timestamp, timedelta(weeks=6))
 
@@ -104,7 +105,7 @@ def find_candidates(url: str,
     timestamps = set(chain.from_iterable(timestamps[1:]))
     timestamps = [datetime.strptime(ts, INTERNET_ARCHIVE_TIMESTAMP_FORMAT).replace(tzinfo=UTC) for ts in timestamps]
 
-    for base_timestamp in proximity_set_window_centers(timestamp):
+    for base_timestamp in neighborhood_window_centers(timestamp):
         left = max(left_limit, base_timestamp - timedelta(days=3, hours=12))
         right = min(right_limit, base_timestamp + timedelta(days=3, hours=12))
 
@@ -143,7 +144,7 @@ def crawl_web_archive_cdx(tranco_file: Path = get_absolute_tranco_file_path(),
                           timestamps: list[datetime] = TIMESTAMPS,
                           n: int = NUMBER_URLS,
                           proxies: dict[str, str] | None = None) -> None:
-    """Crawl the Internet Archive CDX server for candidates for each (url, timestamp) proximity set."""
+    """Crawl the Internet Archive CDX server for candidates for each (url, timestamp) neighborhood."""
     worked_jobs = reset_failed_cdx_crawls()
 
     jobs = [
@@ -157,15 +158,10 @@ def crawl_web_archive_cdx(tranco_file: Path = get_absolute_tranco_file_path(),
         pool.map(cdx_worker, partition_jobs(jobs, CANDIDATES_WORKERS))
 
 
-def proximity_sets_worker(jobs: list[ArchiveJob]) -> None:
-    """Wrapper function for the Internet Archive worker that fixes the table name to `TABLE_NAME`."""
-    return archive_worker(jobs, table_name=TABLE_NAME)
-
-
-def crawl_proximity_sets(timestamps: list[datetime] = TIMESTAMPS,
-                         proxies: dict[str, str] | None = None,
-                         n: int = 10) -> None:
-    """Crawl the Internet Archive for the `n` closest candidates of the proximity set."""
+def crawl_neighborhoods(timestamps: list[datetime] = TIMESTAMPS,
+                        proxies: dict[str, str] | None = None,
+                        n: int = 10) -> None:
+    """Crawl the Internet Archive for the `n` closest candidates of the neighborhood."""
     worked_jobs = reset_failed_archive_crawls(TABLE_NAME)
     jobs = []
     with get_database_cursor() as cursor:
@@ -185,16 +181,17 @@ def crawl_proximity_sets(timestamps: list[datetime] = TIMESTAMPS,
                 ]
             ]
 
+    worker = partial(archive_worker, table_name=TABLE_NAME)
     with Pool(WORKERS) as pool:
-        pool.map(proximity_sets_worker, partition_jobs(jobs, WORKERS))
+        pool.map(worker, partition_jobs(jobs, WORKERS))
 
 
 def main():
-    setup_candidates_lists_table()
+    setup_candidates_table()
     crawl_web_archive_cdx()
 
     setup(TABLE_NAME)
-    crawl_proximity_sets()
+    crawl_neighborhoods()
 
 
 if __name__ == '__main__':
