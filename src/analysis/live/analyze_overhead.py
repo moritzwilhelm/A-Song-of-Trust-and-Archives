@@ -1,8 +1,11 @@
 import json
 from collections import defaultdict
 
+from tqdm import tqdm
+
 from analysis.live.analyze_disagreement import TIMESTAMP, ARCHIVE_TABLE_NAME
 from configs.analysis import MEMENTO_HEADER
+from configs.crawling import TODAY
 from configs.database import get_database_cursor
 from configs.utils import join_with_json_path
 from data_collection.collect_live_data import TABLE_NAME as LIVE_TABLE_NAME
@@ -16,10 +19,10 @@ def analyze_overhead() -> None:
     with get_database_cursor() as cursor:
         cursor.execute(f"""
             SELECT l.response_time / %s, a.response_time / %s
-            FROM {LIVE_TABLE_NAME} l JOIN {ARCHIVE_TABLE_NAME} a USING (tranco_id, status_code)
-            WHERE l.status_code IS NOT NULL AND a.headers->>%s IS NOT NULL AND l.timestamp::date=%s AND a.timestamp::date=%s
-        """, (FACTOR, FACTOR, MEMENTO_HEADER.lower(), TIMESTAMP.date(), TIMESTAMP.date()))
-        for live_response_time, archive_response_time in cursor.fetchall():
+            FROM {LIVE_TABLE_NAME} l JOIN {ARCHIVE_TABLE_NAME} a USING (tranco_id, status_code, timestamp)
+            WHERE l.status_code IS NOT NULL AND a.headers->>%s IS NOT NULL AND timestamp BETWEEN %s AND %s
+        """, (FACTOR, FACTOR, MEMENTO_HEADER.lower(), TIMESTAMP, TODAY))
+        for live_response_time, archive_response_time in tqdm(cursor.fetchall()):
             result['Live Measurement'].append(float(live_response_time))
             result['Archive-based Measurement'].append(float(archive_response_time))
             result['Internet Archive Overhead'].append(float(archive_response_time - live_response_time))
