@@ -21,6 +21,7 @@ def plot_hits(hits_input_path: Path, fresh_hits_input_path: Path) -> None:
         fresh_hits = DataFrame.from_dict(json.load(file), orient='index', columns=['Fresh Hits'])
 
     data = hits.merge(fresh_hits, left_index=True, right_index=True)
+    print(hits_input_path, data['Fresh Hits'] / data['Hits'])
 
     axes = data.plot.bar(color=COLORS, grid=True, ylim=(0, NUMBER_URLS))
     axes.legend(loc='lower right')
@@ -42,7 +43,7 @@ def plot_drifts(input_path: Path, tolerance: int | None) -> None:
 
     axes = data.plot.box(
         grid=True,
-        ylim=(-7 * tolerance - 1, 7 * tolerance + 1) if tolerance is not None else None,
+        ylim=(-tolerance - 1, tolerance + 1) if tolerance is not None else None,
         boxprops=dict(linestyle='-', linewidth=1, color=COLORS[0]),
         whiskerprops=dict(linestyle='dotted', linewidth=1, color=COLORS[1]),
         medianprops=dict(linestyle='-', linewidth=1, color=COLORS[2]),
@@ -54,7 +55,7 @@ def plot_drifts(input_path: Path, tolerance: int | None) -> None:
     axes.set_xticks(*get_year_ticks(1), rotation=0)
     axes.set_ylabel('Temporal drift in days')
     if tolerance is not None:
-        axes.set_yticks(range(-7 * tolerance, 7 * tolerance + 1, 7))
+        axes.set_yticks(range(-tolerance, tolerance + 1, 7))
 
     axes.figure.savefig(json_to_plots_path(input_path), bbox_inches='tight', dpi=300)
 
@@ -62,7 +63,7 @@ def plot_drifts(input_path: Path, tolerance: int | None) -> None:
     plt.close()
 
 
-def plot_hits_per_buckets(input_path: Path):
+def plot_hits_per_buckets(input_path: Path) -> None:
     """Plot the number of archive hits per 100k bucket."""
     with open(input_path) as file:
         data = read_json(file, orient='index')
@@ -88,15 +89,15 @@ def plot_hits_per_buckets(input_path: Path):
 def main():
     for table_name in TABLE_NAME, RANDOM_SAMPLING_TABLE_NAME:
         plot_hits(
-            join_with_json_path(f"QUANTITY-{table_name}-None-w-tolerance.json"),
-            join_with_json_path(f"QUANTITY-{table_name}-6-w-tolerance.json")
+            join_with_json_path(f"COVERAGE-{table_name}.None.json"),
+            join_with_json_path(f"COVERAGE-{table_name}.42.json")
         )
 
-        for tolerance in None, 6:
-            plot_drifts(join_with_json_path(f"DRIFTS-{table_name}-{tolerance}-w-tolerance.json"), tolerance)
+        for tolerance in None, 7 * 6:
+            plot_drifts(join_with_json_path(f"DRIFTS-{table_name}.{tolerance}.json"), tolerance)
 
-    for tolerance in None, 6:
-        plot_hits_per_buckets(join_with_json_path(f"BUCKETS-{RANDOM_SAMPLING_TABLE_NAME}-{tolerance}-w-tolerance.json"))
+    for tolerance in None, 7 * 6:
+        plot_hits_per_buckets(join_with_json_path(f"BUCKETS-{RANDOM_SAMPLING_TABLE_NAME}.{tolerance}.json"))
 
 
 if __name__ == '__main__':

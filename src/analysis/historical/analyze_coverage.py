@@ -26,7 +26,10 @@ def compute_hits(table_name: str, tolerance: timedelta | None = None) -> None:
 
             num_hits[str(timestamp)] = cursor.fetchone()[0]
 
-    with open(join_with_json_path(f"QUANTITY-{table_name}.{tolerance}.json"), 'w') as file:
+    if tolerance is not None:
+        tolerance = tolerance.days
+
+    with open(join_with_json_path(f"COVERAGE-{table_name}.{tolerance}.json"), 'w') as file:
         json.dump(num_hits, file, indent=2, sort_keys=True)
 
 
@@ -45,6 +48,9 @@ def compute_drifts(table_name: str, tolerance: timedelta | None = None) -> None:
             for archived_date, in cursor.fetchall():
                 drifts[str(timestamp)].append(timedelta_to_days(archived_date - timestamp))
 
+    if tolerance is not None:
+        tolerance = tolerance.days
+
     with open(join_with_json_path(f"DRIFTS-{table_name}.{tolerance}.json"), 'w') as file:
         json.dump(drifts, file, indent=2, sort_keys=True)
 
@@ -62,6 +68,9 @@ def compute_hits_per_bucket(tolerance: timedelta | None = None) -> None:
                 """, (timestamp, MEMENTO_HEADER.lower(), *compute_tolerance_window(timestamp, tolerance), start, end))
 
                 num_hits[str(timestamp)][end // 1_000] = cursor.fetchone()[0]
+
+    if tolerance is not None:
+        tolerance = tolerance.days
 
     with open(join_with_json_path(f"BUCKETS-{RANDOM_SAMPLING_TABLE_NAME}.{tolerance}.json"), 'w') as file:
         json.dump(num_hits, file, indent=2, sort_keys=True)
