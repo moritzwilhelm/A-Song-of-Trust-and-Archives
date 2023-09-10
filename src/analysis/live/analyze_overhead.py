@@ -24,13 +24,6 @@ def analyze_overhead() -> None:
             result['Archive-based Measurement'].append(float(archive_response_time))
             result['Internet Archive Overhead'].append(float(archive_response_time - live_response_time))
 
-    if True:
-        for key in result:
-            print(key, len(result[key]), sum(result[key])/len(result[key]))
-        print(min(result['Live Measurement']), max(result['Live Measurement']))
-        print(min(result['Archive-based Measurement']), max(result['Archive-based Measurement']))
-        print(min(result['Internet Archive Overhead']), max(result['Internet Archive Overhead']))
-
     with open(join_with_json_path(f"OVERHEAD-{LIVE_TABLE_NAME}-{ARCHIVE_TABLE_NAME}.json"), 'w') as file:
         json.dump(result, file, indent=2)
 
