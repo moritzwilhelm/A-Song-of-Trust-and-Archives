@@ -11,19 +11,19 @@ from configs.crawling import TIMESTAMPS
 from configs.utils import join_with_json_path, get_tranco_data
 
 
-def analyze_quality(urls: list[tuple[int, str, str]],
-                    proximity_sets_path: Path,
-                    aggregation_function: Callable[[Headers, Origin | None], Headers] = normalize_headers) -> None:
-    """Compute the consistency of header values within each proximity set."""
-    with open(proximity_sets_path) as file:
-        proximity_sets = json.load(file, cls=HeadersDecoder)
+def analyze_consistency(urls: list[tuple[int, str, str]],
+                        neighborhoods_path: Path,
+                        aggregation_function: Callable[[Headers, Origin | None], Headers] = normalize_headers) -> None:
+    """Compute the consistency of header values within each neighborhood."""
+    with open(neighborhoods_path) as file:
+        neighborhoods = json.load(file, cls=HeadersDecoder)
 
     result = defaultdict(lambda: defaultdict(dict))
     for tid, _, _ in tqdm(urls):
         for timestamp in TIMESTAMPS:
             seen_values = defaultdict(set)
             deploys = defaultdict(lambda: False)
-            for _, headers, end_url, *_ in proximity_sets[str(tid)][str(timestamp)]:
+            for _, headers, end_url, *_ in neighborhoods[str(tid)][str(timestamp)]:
                 aggregated_headers = aggregation_function(headers, parse_origin(end_url))
                 for security_mechanism, header in SECURITY_MECHANISM_HEADERS.items():
                     seen_values[security_mechanism].add(aggregated_headers[security_mechanism])
@@ -33,19 +33,21 @@ def analyze_quality(urls: list[tuple[int, str, str]],
                 result[tid][security_mechanism][str(timestamp)] = (
                     deploys[header],
                     len(seen_values[security_mechanism]),
-                    len(proximity_sets[str(tid)][str(timestamp)])
+                    len(neighborhoods[str(tid)][str(timestamp)])
                 )
 
-    output_path_name = f"QUALITY-{proximity_sets_path.with_suffix(f'.{aggregation_function.__name__}.json').name}"
+    output_path_name = f"CONSISTENCY-{neighborhoods_path.with_suffix(f'.{aggregation_function.__name__}.json').name}"
     with open(join_with_json_path(output_path_name), 'w') as file:
         json.dump(result, file, indent=2, sort_keys=True)
 
 
 def main():
     for aggregation_function in normalize_headers, classify_headers:
-        analyze_quality(get_tranco_data(),
-                        join_with_json_path(f"PROXIMITY-SETS-{10}.json"),
-                        aggregation_function=aggregation_function)
+        analyze_consistency(
+            get_tranco_data(),
+            join_with_json_path(f"NEIGHBORHOODS.{10}.json"),
+            aggregation_function=aggregation_function
+        )
 
 
 if __name__ == '__main__':
