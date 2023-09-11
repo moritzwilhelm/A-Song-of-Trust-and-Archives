@@ -88,7 +88,7 @@ def build_js_table(input_path: Path) -> None:
 \begin{{table}}
     \centering
     \begin{{tabular}}{{l|cc}}
-        & \multicolumn{{2}}{{c}}{{Total ({data['SUCCESS']:,} sites)}} \\
+        & \multicolumn{{2}}{{c}}{{Total ({data['SUCCESS']:,} domains)}} \\
         \midrule
         & \textbf{{Count}} & \textbf{{Disagreement}} \\
 {lines}

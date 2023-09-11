@@ -34,7 +34,7 @@ def plot_feature_importance(input_path: Path):
     df = df.reindex(list(CATEGORY_ABBREVIATIONS))
     axes = df.plot.bar(color=COLORS, grid=True, ylim=(0, 1), rot=45)
     axes.xaxis.set_major_formatter(lambda label, _: CATEGORY_ABBREVIATIONS[df.index[label]])
-    axes.set_ylabel('Inconsistent Proximity Sets')
+    axes.set_ylabel('Inconsistent Neighborhoods')
     axes.yaxis.set_major_formatter(PercentFormatter(xmax=1.0))
     axes.legend(ncol=5, loc='upper center', bbox_to_anchor=(0.5, 1.13))
 

@@ -55,7 +55,7 @@ def plot_script_inclusion_bounds(input_path: Path):
         axes.set_xticks(*get_year_ticks(), rotation=0)
         axes.xaxis.get_minor_ticks()[0].set_visible(False)
         axes.xaxis.get_minor_ticks()[-1].set_visible(False)
-        axes.set_ylabel('Average number of inclusions')
+        axes.set_ylabel('Average number of included scripts')
         axes.legend(ncol=3, loc='upper center', bbox_to_anchor=(0.5, 1.1))
 
         axes.figure.savefig(json_to_plots_path(input_path, f".{granularity}.png"), bbox_inches='tight', dpi=300)

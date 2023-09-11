@@ -29,8 +29,8 @@ def plot_hits(hits_input_path: Path, fresh_hits_input_path: Path) -> None:
     axes.set_xticks(*get_year_ticks(), rotation=0)
     axes.set_ylabel('Number of domains')
 
-    output_filename = f"{commonprefix((hits_input_path.name, fresh_hits_input_path.name)).rstrip('-')}.png"
-    axes.figure.savefig(join_with_plots_path(output_filename), bbox_inches='tight', dpi=300)
+    axes.figure.savefig(join_with_plots_path(f"{commonprefix((hits_input_path.name, fresh_hits_input_path.name))}png"),
+                        bbox_inches='tight', dpi=300)
 
     axes.figure.show()
     plt.close()
@@ -76,7 +76,7 @@ def plot_hits_per_buckets(input_path: Path) -> None:
         axes.set_ylabel('Hits' if 'None-w' in input_path.name else 'Fresh Hits')
         axes.set_yticks(range(0, (NUMBER_URLS // 10) + 1, NUMBER_URLS // 100))
         axes.yaxis.set_major_formatter(PercentFormatter(xmax=NUMBER_URLS / 10))
-        axes.legend([f"{bucket}k" for bucket in data.columns], ncol=5, loc='upper center', bbox_to_anchor=(0.5, 1.16))
+        axes.legend([f"{bucket}k" for bucket in data.columns], ncol=5, loc='upper center', bbox_to_anchor=(0.5, 1.18))
 
         axes.figure.savefig(json_to_plots_path(input_path, f".{TIMESTAMPS[i].year}-{TIMESTAMPS[i + 4].year}.png"),
                             bbox_inches='tight', dpi=300)
