@@ -1,4 +1,5 @@
 import json
+from collections import defaultdict
 from pathlib import Path
 
 from matplotlib import pyplot as plt
@@ -50,10 +51,87 @@ def plot_consistency(input_path: Path) -> None:
         plt.close()
 
 
+def build_table(syntax_input_path: Path, semantics_input_path: Path) -> None:
+    with open(syntax_input_path) as file:
+        syntax = json.load(file)
+    with open(semantics_input_path) as file:
+        semantics = json.load(file)
+
+    result = defaultdict(dict)
+    for data, key in (syntax, 'SYNTAX'), (semantics, 'SEMANTICS'):
+        proximity_sets_deploying_any_header = set()
+        proximity_sets_inconsistent_any = set()
+        for mechanism in SECURITY_MECHANISM_HEADERS:
+            proximity_sets_deploying_header = 0
+            proximity_sets_inconsistent = 0
+            for tid in data:
+                deploys_once = False
+                inconsistent_once = False
+                for timestamp in TIMESTAMPS:
+                    deploys, value_count, set_size = data[tid][mechanism][str(timestamp)]
+                    if set_size > 1:
+                        proximity_sets_deploying_header += deploys
+                        if deploys:
+                            proximity_sets_deploying_any_header.add((tid, timestamp))
+                        proximity_sets_inconsistent += value_count > 1
+                        if value_count > 1:
+                            proximity_sets_inconsistent_any.add((tid, timestamp))
+                        deploys_once |= deploys
+                        inconsistent_once |= value_count > 1
+
+            result[key][mechanism] = proximity_sets_inconsistent
+            result['DEPLOYS'][mechanism] = proximity_sets_deploying_header
+
+        proximity_sets_deploying_any_header = len(proximity_sets_deploying_any_header)
+        proximity_sets_inconsistent_any = len(proximity_sets_inconsistent_any)
+        result[key]['ANY'] = proximity_sets_inconsistent_any
+        result['DEPLOYS']['ANY'] = proximity_sets_deploying_any_header
+
+    header_lines = []
+    for mechanism, header in SECURITY_MECHANISM_HEADERS.items():
+        usage = result['DEPLOYS'][mechanism]
+        syn_diff = result['SYNTAX'][mechanism]
+        sem_diff = result['SEMANTICS'][mechanism]
+        header_lines.append(
+            f"\t\t{mechanism} & {usage:,} & "
+            fr"{syn_diff:,} ({syn_diff / usage * 100:.2f}\%) & "
+            fr"{sem_diff:,} ({sem_diff / usage * 100:.2f}\%) \\"
+        )
+    header_lines = '\n'.join(header_lines)
+
+    usage = result['DEPLOYS']['ANY']
+    syn_diff = result['SYNTAX']['ANY']
+    sem_diff = result['SEMANTICS']['ANY']
+    any_header_lines = [
+        f"\t\t\\textit{{Any header}} & {usage:,} & "
+        fr"{syn_diff:,} ({syn_diff / usage * 100:.2f}\%) & "
+        fr"{sem_diff:,} ({sem_diff / usage * 100:.2f}\%) \\"
+    ]
+    any_header_lines = '\n'.join(any_header_lines)
+
+    print(fr"""
+\begin{{table}}
+    \centering
+    \begin{{tabular}}{{l|rrr}}
+        & \multicolumn{{3}}{{c}}{{Total ( domains)}} \\
+        \midrule
+        & \textbf{{usage}} & \textbf{{syn. diff.}} & \textbf{{sem. diff.}} \\
+{header_lines}
+        \midrule
+{any_header_lines}
+    \end{{tabular}}
+    \caption{{INCONSISTENCIES}}
+    \label{{tab:inconsistencies::headers}}
+\end{{table}}""")
+
+
 @latexify(xtick_minor_visible=True)
 def main():
     for aggregation_function in normalize_headers, classify_headers:
         plot_consistency(join_with_json_path(f"CONSISTENCY-NEIGHBORHOODS.{10}.{aggregation_function.__name__}.json"))
+
+    build_table(join_with_json_path(f"CONSISTENCY-NEIGHBORHOODS.{10}.{normalize_headers.__name__}.json"),
+                join_with_json_path(f"CONSISTENCY-NEIGHBORHOODS.{10}.{classify_headers.__name__}.json"))
 
 
 if __name__ == '__main__':
