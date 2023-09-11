@@ -47,7 +47,7 @@ def analyze_live_headers(targets: list[tuple[int, str, str]],
                 for header in RELEVANT_HEADERS:
                     result[tid][header][str(date)] = result[tid][header].get(previous_timestamp, True)
 
-    with open(join_with_json_path(f"STABILITY-{LIVE_TABLE_NAME}-{aggregation_function.__name__}.json"), 'w') as file:
+    with open(join_with_json_path(f"STABILITY-{LIVE_TABLE_NAME}.{aggregation_function.__name__}.json"), 'w') as file:
         json.dump(result, file, indent=2, sort_keys=True)
 
 
@@ -100,7 +100,7 @@ def analyze_live_js_inclusions(targets: list[tuple[int, str, str]],
         result[tid]['INCLUDES_SCRIPTS'] = includes_scripts
         result[tid]['INCLUDES_TRACKERS'] = includes_trackers
 
-    with open(join_with_json_path(f"STABILITY-{LIVE_TABLE_NAME}-JS.json"), 'w') as file:
+    with open(join_with_json_path(f"STABILITY-{LIVE_TABLE_NAME}.JS.json"), 'w') as file:
         json.dump(result, file, indent=2, sort_keys=True)
 
 
@@ -110,7 +110,7 @@ ARCHIVE_TABLE_NAME = 'HISTORICAL_DATA_20230716_20230730'
 def analyze_archived_snapshots(targets: list[tuple[int, str, str]],
                                start: datetime = get_min_timestamp(ARCHIVE_TABLE_NAME),
                                end: datetime = get_max_timestamp(ARCHIVE_TABLE_NAME),
-                               n: int = 14) -> None:
+                               n: int = 10) -> None:
     """Compute the stability of archived snapshots from `start` date up to (inclusive) `end` date."""
     assert start <= end
 
@@ -174,7 +174,7 @@ def analyze_archived_snapshots(targets: list[tuple[int, str, str]],
     with open(join_with_json_path(f"REMOVE-DRIFTS-{ARCHIVE_TABLE_NAME}.json"), 'w') as file:
         json.dump(drifts, file, indent=2, sort_keys=True)
 
-    with open(join_with_json_path(f"STABILITY-{ARCHIVE_TABLE_NAME}-snapshots.json"), 'w') as file:
+    with open(join_with_json_path(f"STABILITY-{ARCHIVE_TABLE_NAME}.snapshots.json"), 'w') as file:
         json.dump(result, file, indent=2, sort_keys=True)
 
 

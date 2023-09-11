@@ -182,16 +182,16 @@ def plot_drifts(input_path: Path) -> None:
 @latexify()
 def main():
     # LIVE DATA
-    plot_headers_stability(join_with_json_path(f"STABILITY-{LIVE_TABLE_NAME}-normalize_headers.json"))
-    plot_headers_stability(join_with_json_path(f"STABILITY-{LIVE_TABLE_NAME}-classify_headers.json"))
+    plot_headers_stability(join_with_json_path(f"STABILITY-{LIVE_TABLE_NAME}.normalize_headers.json"))
+    plot_headers_stability(join_with_json_path(f"STABILITY-{LIVE_TABLE_NAME}.classify_headers.json"))
 
-    plot_js_stability(join_with_json_path(f"STABILITY-{LIVE_TABLE_NAME}-JS.json"))
+    plot_js_stability(join_with_json_path(f"STABILITY-{LIVE_TABLE_NAME}.JS.json"))
 
     # ARCHIVE DATA
-    plot_snapshot_stability(join_with_json_path(f"STABILITY-{ARCHIVE_TABLE_NAME}-snapshots.json"))
+    plot_snapshot_stability(join_with_json_path(f"STABILITY-{ARCHIVE_TABLE_NAME}.snapshots.json"))
 
     plot_snapshot_stability(
-        join_with_json_path('STABILITY-archive_data_20230501-snapshots-2023-05-01.json'),
+        join_with_json_path('STABILITY-archive_data_20230501.snapshots.json'),
         start=datetime(2023, 5, 1, 12, tzinfo=UTC),
         end=datetime(2023, 5, 1, 12, tzinfo=UTC)
     )
