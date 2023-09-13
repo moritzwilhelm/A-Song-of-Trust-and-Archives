@@ -1,5 +1,5 @@
 import json
-from collections import defaultdict
+from collections import defaultdict, Counter
 from datetime import timedelta
 from pathlib import Path
 
@@ -75,6 +75,7 @@ def analyze_trackers(urls: list[tuple[int, str, str]], neighborhoods_path: Path)
     tracking_domains = get_tracking_domains()
 
     result = defaultdict(dict)
+    counts = defaultdict(Counter)
     for tid, _, _ in tqdm(urls):
         for timestamp in TIMESTAMPS:
             if len(neighborhoods[str(tid)][str(timestamp)]) < 2:
@@ -92,7 +93,13 @@ def analyze_trackers(urls: list[tuple[int, str, str]], neighborhoods_path: Path)
                 'Intersection': sorted(set.intersection(*trackers)) if trackers else []
             }
 
+            for tracker in set.union(*trackers):
+                counts[str(timestamp)][tracker] += 1
+
     with open(join_with_json_path(f"TRACKERS-{neighborhoods_path.name}"), 'w') as file:
+        json.dump(result, file, indent=2, sort_keys=True)
+
+    with open(join_with_json_path(f"TRACKERS-COUNTS-{neighborhoods_path.name}"), 'w') as file:
         json.dump(result, file, indent=2, sort_keys=True)
 
 
