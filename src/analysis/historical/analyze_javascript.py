@@ -46,6 +46,7 @@ def analyze_inclusion_bounds(urls: list[tuple[int, str, str]], neighborhoods_pat
         neighborhoods = json.load(file, cls=HeadersDecoder)
 
     result = defaultdict(lambda: defaultdict(dict))
+    counts = defaultdict(lambda: defaultdict(Counter))
     for tid, _, _ in tqdm(urls):
         for timestamp in TIMESTAMPS:
             if len(neighborhoods[str(tid)][str(timestamp)]) < 2:
@@ -63,8 +64,14 @@ def analyze_inclusion_bounds(urls: list[tuple[int, str, str]], neighborhoods_pat
                     'Intersection': len(set.intersection(*scripts[granularity])) if scripts[granularity] else 0
                 }
 
+                for script in set.union(*scripts[granularity]):
+                    counts[granularity][str(timestamp)][script] += 1
+
     with open(join_with_json_path(f"JAVASCRIPT-{neighborhoods_path.name}"), 'w') as file:
         json.dump(result, file, indent=2, sort_keys=True)
+
+    with open(join_with_json_path(f"JAVASCRIPT-COUNTS-{neighborhoods_path.name}"), 'w') as file:
+        json.dump(counts, file, indent=2, sort_keys=True)
 
 
 def analyze_trackers(urls: list[tuple[int, str, str]], neighborhoods_path: Path) -> None:
@@ -75,7 +82,7 @@ def analyze_trackers(urls: list[tuple[int, str, str]], neighborhoods_path: Path)
     tracking_domains = get_tracking_domains()
 
     result = defaultdict(dict)
-    counts = defaultdict(Counter)
+    counts = {'trackers': defaultdict(Counter)}
     for tid, _, _ in tqdm(urls):
         for timestamp in TIMESTAMPS:
             if len(neighborhoods[str(tid)][str(timestamp)]) < 2:
@@ -94,13 +101,13 @@ def analyze_trackers(urls: list[tuple[int, str, str]], neighborhoods_path: Path)
             }
 
             for tracker in set.union(*trackers):
-                counts[str(timestamp)][tracker] += 1
+                counts['trackers'][str(timestamp)][tracker] += 1
 
     with open(join_with_json_path(f"TRACKERS-{neighborhoods_path.name}"), 'w') as file:
         json.dump(result, file, indent=2, sort_keys=True)
 
     with open(join_with_json_path(f"TRACKERS-COUNTS-{neighborhoods_path.name}"), 'w') as file:
-        json.dump(result, file, indent=2, sort_keys=True)
+        json.dump(counts, file, indent=2, sort_keys=True)
 
 
 def main():
