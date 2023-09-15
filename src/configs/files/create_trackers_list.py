@@ -1,5 +1,4 @@
 import json
-import re
 from itertools import chain
 
 from configs.utils import PROJECT_ROOT
@@ -15,14 +14,7 @@ def create_trackers_json() -> None:
         for domain in chain(*entity_info.values()):
             trackers.add(domain)
 
-    with open(PROJECT_ROOT.joinpath('src', 'configs', 'files', 'easyprivacy.txt')) as file:
-        for line in file:
-            if line.startswith('||'):
-                trackers.add(re.match(r'\|\|([^/^$]*)([/^$].*)?', line).group(1))
-            elif line.startswith('|'):
-                trackers.add(re.match(r'\|https?://([^/^$]*)([/^$].*)?', line).group(1))
-
-    with open(PROJECT_ROOT.joinpath('src', 'configs', 'files', 'trackers.json'), 'w') as file:
+    with open(PROJECT_ROOT.joinpath('src', 'configs', 'files', 'disconnect_trackers.json'), 'w') as file:
         json.dump(sorted(trackers), file, indent=2)
 
 

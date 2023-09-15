@@ -5,13 +5,13 @@ from typing import Callable
 
 from tqdm import tqdm
 
-from analysis.analysis_utils import timedelta_to_days
+from analysis.analysis_utils import timedelta_to_days, is_tracker
 from analysis.header_utils import Headers, Origin, parse_origin, normalize_headers, classify_headers
 from analysis.live.stability_enums import Status
 from analysis.post_processing.extract_script_metadata import METADATA_TABLE_NAME
 from configs.analysis import RELEVANT_HEADERS, MEMENTO_HEADER
 from configs.database import get_database_cursor, get_min_timestamp, get_max_timestamp
-from configs.utils import join_with_json_path, get_tranco_data, date_range, get_tracking_domains
+from configs.utils import join_with_json_path, get_tranco_data, date_range
 from data_collection.collect_live_data import TABLE_NAME as LIVE_TABLE_NAME
 
 
@@ -60,14 +60,12 @@ def analyze_live_js_inclusions(targets: list[tuple[int, str, str]],
     live_data = {}
     with get_database_cursor() as cursor:
         cursor.execute(f"""
-            SELECT tranco_id, timestamp::date, relevant_sources, hosts, sites
+            SELECT tranco_id, timestamp::date, relevant_sources, hosts, sites, end_url
             FROM {LIVE_TABLE_NAME} JOIN {METADATA_TABLE_NAME} USING (content_hash)
             WHERE status_code=200 AND timestamp::date BETWEEN %s AND %s
         """, (start, end))
-        for tid, date, *data in cursor.fetchall():
-            live_data[tid, date] = data
-
-    tracking_domains = get_tracking_domains()
+        for tid, date, *data, end_url in cursor.fetchall():
+            live_data[tid, date] = (*map(tuple, data), parse_origin(end_url))
 
     result = defaultdict(lambda: defaultdict(dict))
     for tid, _, _ in tqdm(targets):
@@ -76,7 +74,7 @@ def analyze_live_js_inclusions(targets: list[tuple[int, str, str]],
         includes_trackers = False
         for date in date_range(start, end):
             if (tid, date) in live_data:
-                relevant_sources, hosts, sites = map(tuple, live_data[tid, date])
+                relevant_sources, hosts, sites, origin = live_data[tid, date]
                 includes_scripts |= len(relevant_sources) > 0
                 seen_values['urls'].add(relevant_sources)
                 result[tid]['urls'][str(date)] = len(seen_values['urls']) == 1
@@ -85,8 +83,7 @@ def analyze_live_js_inclusions(targets: list[tuple[int, str, str]],
                 seen_values['sites'].add(sites)
                 result[tid]['sites'][str(date)] = len(seen_values['sites']) == 1
 
-                trackers = tuple(sorted(set(host for host in hosts if host in tracking_domains) |
-                                        set(site for site in sites if site in tracking_domains)))
+                trackers = tuple(sorted({script for script in relevant_sources if is_tracker(script, origin)}))
                 includes_trackers |= len(trackers) > 0
                 seen_values['trackers'].add(trackers)
                 result[tid]['trackers'][str(date)] = len(seen_values['trackers']) == 1

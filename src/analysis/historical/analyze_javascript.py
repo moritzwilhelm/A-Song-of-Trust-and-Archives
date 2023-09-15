@@ -5,12 +5,13 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-from analysis.header_utils import HeadersDecoder
+from analysis.analysis_utils import is_tracker
+from analysis.header_utils import HeadersDecoder, parse_origin
 from analysis.post_processing.extract_script_metadata import METADATA_TABLE_NAME
 from configs.analysis import MEMENTO_HEADER
 from configs.crawling import TIMESTAMPS
 from configs.database import get_database_cursor
-from configs.utils import join_with_json_path, get_tranco_data, compute_tolerance_window, get_tracking_domains
+from configs.utils import join_with_json_path, get_tranco_data, compute_tolerance_window
 from data_collection.collect_archive_data import TABLE_NAME as ARCHIVE_TABLE_NAME
 
 
@@ -79,8 +80,6 @@ def analyze_trackers(urls: list[tuple[int, str, str]], neighborhoods_path: Path)
     with open(neighborhoods_path) as file:
         neighborhoods = json.load(file, cls=HeadersDecoder)
 
-    tracking_domains = get_tracking_domains()
-
     result = defaultdict(dict)
     counts = {'trackers': defaultdict(Counter)}
     for tid, _, _ in tqdm(urls):
@@ -89,11 +88,8 @@ def analyze_trackers(urls: list[tuple[int, str, str]], neighborhoods_path: Path)
                 continue
 
             trackers = []
-            for *_, hosts, sites in neighborhoods[str(tid)][str(timestamp)]:
-                trackers.append(
-                    set(host for host in hosts if host in tracking_domains) |
-                    set(site for site in sites if site in tracking_domains)
-                )
+            for _, _, end_url, _, _, scripts, _, _ in neighborhoods[str(tid)][str(timestamp)]:
+                trackers.append({script for script in scripts if is_tracker(script, parse_origin(end_url))})
 
             result[tid][str(timestamp)] = {
                 'Union': sorted(set.union(*trackers)) if trackers else [],

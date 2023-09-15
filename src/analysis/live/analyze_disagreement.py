@@ -5,14 +5,14 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-from analysis.analysis_utils import parse_archived_headers
+from analysis.analysis_utils import parse_archived_headers, is_tracker
 from analysis.header_utils import Headers, parse_origin, normalize_headers, classify_headers
 from analysis.post_processing.extract_script_metadata import METADATA_TABLE_NAME
 from configs.analysis import RELEVANT_HEADERS, INTERNET_ARCHIVE_END_URL_REGEX, MEMENTO_HEADER, \
     SECURITY_MECHANISM_HEADERS
 from configs.crawling import ARCHIVE_IT_USER_AGENT
 from configs.database import get_database_cursor
-from configs.utils import get_tranco_data, join_with_json_path, get_tracking_domains
+from configs.utils import get_tranco_data, join_with_json_path
 from data_collection.collect_live_data import TABLE_NAME as LIVE_TABLE_NAME
 from data_collection.crawling import crawl, CrawlingException
 
@@ -202,15 +202,14 @@ def analyze_trackers(targets: list[tuple[int, str, str]]) -> None:
         for start_url, *data in cursor.fetchall():
             analysis_data[start_url] = tuple(data)
 
-    tracking_domains = get_tracking_domains()
     result = defaultdict(set)
     for tid, domain, url in tqdm(targets):
         if url not in analysis_data:
             result['FAIL'].add(url)
             continue
 
-        (live_end_url, live_status_code, live_urls, live_hosts, live_sites, memento_datetime, archived_end_url,
-         archived_status_code, archived_urls, archived_hosts, archived_sites) = analysis_data[url]
+        (live_end_url, live_status_code, live_scripts, live_hosts, live_sites, memento_datetime, archived_end_url,
+         archived_status_code, archive_scripts, archived_hosts, archived_sites) = analysis_data[url]
 
         if parse_origin(live_end_url) != parse_origin(archived_end_url):
             result['ORIGIN_MISMATCH'].add(url)
@@ -222,23 +221,21 @@ def analyze_trackers(targets: list[tuple[int, str, str]]) -> None:
 
         result['SUCCESS'].add(url)
 
-        if set(live_urls) | set(archived_urls):
+        if set(live_scripts) | set(archive_scripts):
             result['INCLUDES_SCRIPTS'].add(url)
 
-            if set(live_urls) != set(archived_urls):
+            if set(live_scripts) != set(archive_scripts):
                 result['DIFFERENT_URLS'].add(url)
             if set(live_hosts) != set(archived_hosts):
                 result['DIFFERENT_HOSTS'].add(url)
             if set(live_sites) != set(archived_sites):
                 result['DIFFERENT_SITES'].add(url)
 
-            if bool(live_urls) ^ bool(archived_urls):
+            if bool(live_scripts) ^ bool(archive_scripts):
                 result['SCRIPTS_INCLUSION_EITHER_MISSING'].add(url)
 
-        live_trackers = (set(host for host in live_hosts if host in tracking_domains) |
-                         set(site for site in live_sites if site in tracking_domains))
-        archived_trackers = (set(host for host in archived_hosts if host in tracking_domains) |
-                             set(site for site in archived_sites if site in tracking_domains))
+        live_trackers = {script for script in live_scripts if is_tracker(script, parse_origin(live_end_url))}
+        archived_trackers = {script for script in archive_scripts if is_tracker(script, parse_origin(archived_end_url))}
 
         if live_trackers | archived_trackers:
             result['INCLUDES_TRACKERS'].add(url)

@@ -37,9 +37,12 @@ class Origin(NamedTuple):
         return f"{self.protocol}://{self.host}" if self.port is None else f"{self.protocol}://{self.host}:{self.port}"
 
 
+@cache
 def parse_origin(url: str) -> Origin:
     """Extract the origin of a given URL."""
     parsed_url = parse_url(url)
+    if parsed_url.scheme == 'data':
+        return Origin(parsed_url.scheme.lower(), '', None)
     if parsed_url.host is None:
         parsed_url = parse_url(re.sub(r"^(https?):/(?!/)", r"\1://", url))
     return Origin(parsed_url.scheme.lower(), parsed_url.host.lower(), parsed_url.port)

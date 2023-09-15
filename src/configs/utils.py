@@ -5,6 +5,8 @@ from itertools import islice
 from math import inf
 from pathlib import Path
 
+from adblockparser import AdblockRules
+
 from configs.crawling import NUMBER_URLS, URL_PREFIX
 
 PROJECT_ROOT = Path('<AUTOMATICALLY-REPLACED-DURING-INSTALL>')
@@ -55,7 +57,16 @@ def compute_tolerance_window(timestamp: datetime, tolerance: timedelta | None = 
         return datetime.min, datetime.max
 
 
-def get_tracking_domains() -> set[str]:
-    """Return the set of tracking domains."""
-    with open(PROJECT_ROOT.joinpath('src', 'configs', 'files', 'trackers.json')) as file:
+def get_disconnect_tracking_domains() -> set[str]:
+    """Return the set of tracking domains based on the Disconnect List."""
+    with open(PROJECT_ROOT.joinpath('src', 'configs', 'files', 'disconnect_trackers.json')) as file:
         return set(json.load(file))
+
+
+def get_easyprivacy_rules(supported_options: list[str], skip_unsupported_rules: bool) -> AdblockRules:
+    with open(PROJECT_ROOT.joinpath('src', 'configs', 'files', 'easyprivacy.txt')) as file:
+        return AdblockRules(
+            file.read().splitlines(),
+            supported_options=supported_options,
+            skip_unsupported_rules=skip_unsupported_rules
+        )

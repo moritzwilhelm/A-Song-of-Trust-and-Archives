@@ -6,8 +6,8 @@ from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
 from psycopg2.extras import Json
-from tldextract import extract
 
+from analysis.analysis_utils import parse_hostname, parse_site
 from configs.database import STORAGE, get_database_cursor
 from data_collection.collect_archive_data import TABLE_NAME as ARCHIVE_TABLE_NAME
 from data_collection.collect_archive_neighborhoods import TABLE_NAME as NEIGHBORHOODS_TABLE_NAME
@@ -69,9 +69,8 @@ def worker(jobs: list[AnalysisJob]) -> None:
             sources = {urljoin(end_url, script_element.get('src')) for script_element in soup.select('script[src]')}
             relevant_sources = sources_filter(sources)
 
-            parsed_sources = {extract(source) for source in relevant_sources}
-            hosts = {'.'.join(filter(None, source)) for source in parsed_sources}
-            sites = {source.registered_domain for source in parsed_sources}
+            hosts = {parse_hostname(source) for source in relevant_sources}
+            sites = {parse_site(source) for source in relevant_sources}
 
             cursor.execute(f"""
                 INSERT INTO {METADATA_TABLE_NAME} (content_hash, sources, relevant_sources, hosts, sites)
