@@ -18,7 +18,7 @@ from data_collection.collect_contributors import METADATA_TABLE_NAME as CONTRIBU
 
 def get_neighbors(n: int = 10):
     """Retrieve all neighborhood members per (tranco_id, timestamp) neighborhood from the database."""
-    result = defaultdict(list)
+    neighbors = defaultdict(list)
     with (get_database_cursor() as cursor):
         cursor.execute(f"""
             SELECT tranco_id, timestamp, candidates
@@ -26,10 +26,10 @@ def get_neighbors(n: int = 10):
             WHERE error IS NULL
         """)
         for tid, timestamp, candidates in cursor.fetchall():
-            result[tid, timestamp] = \
+            neighbors[tid, timestamp] = \
                 [datetime.strptime(ts, INTERNET_ARCHIVE_TIMESTAMP_FORMAT).replace(tzinfo=UTC) for ts in candidates[:n]]
 
-    return result
+    return neighbors
 
 
 def build_neighborhoods(targets: list[tuple[int, str, str]], n: int = 10) -> None:
@@ -38,8 +38,9 @@ def build_neighborhoods(targets: list[tuple[int, str, str]], n: int = 10) -> Non
     archive_data = {}
     with get_database_cursor() as cursor:
         cursor.execute(f"""
-            SELECT tranco_id, timestamp, (headers->>%s)::TIMESTAMPTZ,
-                   headers, substring(end_url FROM %s), status_code, contributor, relevant_sources, hosts, sites
+            SELECT tranco_id, timestamp, 
+                   (headers->>%s)::TIMESTAMPTZ, headers, substring(end_url FROM %s), status_code, contributor, 
+                   relevant_sources, hosts, sites, disconnect_trackers, easyprivacy_trackers
             FROM {NEIGHBORHOODS_TABLE_NAME}
             JOIN {SCRIPTS_TABLE_NAME} USING (content_hash)
             JOIN {CONTRIBUTORS_TABLE_NAME} ON SPLIT_PART(headers->>%s, '/', 1)=source
@@ -93,7 +94,7 @@ def analyze_contributors(neighborhood_path: Path):
     for tid in tqdm(data):
         for timestamp, neighborhood in data[tid].items():
             if len(neighborhood) >= 2:
-                for _, _, _, _, contributor, _, _, _ in neighborhood:
+                for _, _, _, _, contributor, *_ in neighborhood:
                     result[contributor] += 1
 
     with open(neighborhood_path.with_name(f"CONTRIBUTORS-{neighborhood_path.name}"), 'w') as file:

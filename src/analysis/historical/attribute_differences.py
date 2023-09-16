@@ -61,7 +61,7 @@ def attribute_differences(urls: list[tuple[int, str, str]], neighborhoods_path: 
 
             df = DataFrame(neighborhood,
                            columns=['archived_timestamp', 'headers', 'end_url', 'status_code', 'contributor',
-                                    'relevant_sources', 'hosts', 'sites'])
+                                    'relevant_sources', 'hosts', 'sites', 'disconnect', 'easyprivacy'])
             df['origin'] = df['end_url'].apply(parse_origin)
             df['headers_security'] = df.apply(lambda row: classify_headers(row['headers'], row['origin']), axis=1)
             df['origin'] = df['origin'].apply(str)
