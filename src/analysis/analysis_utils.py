@@ -4,7 +4,7 @@ from functools import cache
 from tldextract import extract
 
 from analysis.header_utils import Headers, Origin, parse_origin
-from configs.analysis import RELEVANT_HEADERS, INTERNET_ARCHIVE_HEADER_PREFIX, MEMENTO_HEADER
+from configs.analysis import RELEVANT_HEADERS, INTERNET_ARCHIVE_HEADER_PREFIX
 from configs.utils import get_disconnect_tracking_domains, get_easyprivacy_rules
 
 DISCONNECT_TRACKERS = get_disconnect_tracking_domains()
@@ -13,17 +13,12 @@ EASYPRIVACY_RULES = get_easyprivacy_rules(supported_options=['script', 'domain',
 
 
 def parse_archived_headers(headers: Headers) -> Headers:
-    """Only keep headers prefixed with 'X-Archive-Orig', strip the prefix, and attach the 'Memento-Datetime' header."""
-    result = {
+    """Only keep headers prefixed with 'X-Archive-Orig' and strip the prefix."""
+    return Headers({
         header: headers[f"{INTERNET_ARCHIVE_HEADER_PREFIX}{header}"]
         for header in RELEVANT_HEADERS
         if f"{INTERNET_ARCHIVE_HEADER_PREFIX}{header}" in headers
-    }
-    # keep memento-datetime if present
-    if MEMENTO_HEADER in headers:
-        result[MEMENTO_HEADER] = headers[MEMENTO_HEADER]
-
-    return Headers(result)
+    })
 
 
 def timedelta_to_days(delta: timedelta) -> float:
