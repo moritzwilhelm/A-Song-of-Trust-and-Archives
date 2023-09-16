@@ -4,7 +4,8 @@ from pathlib import Path
 
 from matplotlib import pyplot as plt
 from matplotlib.ticker import PercentFormatter
-from pandas import DataFrame, read_json, concat
+from numpy import arange
+from pandas import DataFrame, read_json
 
 from configs.crawling import NUMBER_URLS, TIMESTAMPS
 from configs.files.random_sample_tranco import RANDOM_SAMPLING_TABLE_NAME
@@ -21,11 +22,12 @@ def plot_hits(hits_input_path: Path, fresh_hits_input_path: Path) -> None:
         fresh_hits = DataFrame.from_dict(json.load(file), orient='index', columns=['Fresh Hits'])
 
     data = hits.merge(fresh_hits, left_index=True, right_index=True)
-    print(hits_input_path, data['Fresh Hits'] / data['Hits'])
+    print(hits_input_path, data['Fresh Hits'] / data['Hits'], sep='\n')
+    print((data['Fresh Hits'] / data['Hits']).min())
+    print((data['Fresh Hits'] / data['Hits']).max())
 
-    axes = data.plot.bar(color=COLORS, grid=True, ylim=(0, NUMBER_URLS))
+    axes = data.plot.bar(color=COLORS, grid=True, ylim=(0, NUMBER_URLS), width=0.75)
     axes.legend(loc='lower right')
-    axes.set_xlabel('Timestamp')
     axes.set_xticks(*get_year_ticks(), rotation=0)
     axes.set_ylabel('Number of domains')
 
@@ -46,12 +48,12 @@ def plot_drifts(input_path: Path, tolerance: int | None) -> None:
         ylim=(-tolerance - 1, tolerance + 1) if tolerance is not None else None,
         boxprops=dict(linestyle='-', linewidth=1, color=COLORS[0]),
         whiskerprops=dict(linestyle='dotted', linewidth=1, color=COLORS[1]),
-        medianprops=dict(linestyle='-', linewidth=1, color=COLORS[2]),
+        medianprops=dict(linestyle='-', linewidth=1, color=COLORS[4]),
         capprops=dict(linestyle='-', linewidth=1, color=COLORS[3]),
         flierprops=dict(linestyle='none', markersize=1, linewidth=0, color=COLORS[4]),
         showfliers=tolerance is not None
     )
-    axes.set_xlabel('Timestamp')
+
     axes.set_xticks(*get_year_ticks(1), rotation=0)
     axes.set_ylabel('Temporal drift in days')
     if tolerance is not None:
@@ -63,26 +65,37 @@ def plot_drifts(input_path: Path, tolerance: int | None) -> None:
     plt.close()
 
 
-def plot_hits_per_buckets(input_path: Path) -> None:
+@latexify(fig_width=412.56497 * (1.0 / 72.27), fig_height=(412.56497 * (1.0 / 72.27)) * 1.75, ytick_minor_visible=True)
+def plot_hits_per_buckets(hits_input_path: Path, fresh_hits_input_path: Path) -> None:
     """Plot the number of archive hits per 100k bucket."""
-    with open(input_path) as file:
-        data = read_json(file, orient='index')
-        data = concat([data, DataFrame(index=data.index[:4 - len(TIMESTAMPS) % 4])])
+    with open(hits_input_path) as file:
+        hits = read_json(file, orient='index')
 
-    for i in range(0, len(data), 8):
-        axes = data.iloc[i:i + 8].plot.bar(color=COLORS, grid=True, ylim=(0, NUMBER_URLS // 10))
-        axes.set_xlabel('Timestamp')
-        axes.set_xticks([0, 4], sorted({date.year for date in TIMESTAMPS[i:i + 8]}), rotation=0)
-        axes.set_ylabel('Hits' if 'None-w' in input_path.name else 'Fresh Hits')
-        axes.set_yticks(range(0, (NUMBER_URLS // 10) + 1, NUMBER_URLS // 100))
-        axes.yaxis.set_major_formatter(PercentFormatter(xmax=NUMBER_URLS / 10))
-        axes.legend([f"{bucket}k" for bucket in data.columns], ncol=5, loc='upper center', bbox_to_anchor=(0.5, 1.18))
+    with open(fresh_hits_input_path) as file:
+        fresh_hits = read_json(file, orient='index')
 
-        axes.figure.savefig(json_to_plots_path(input_path, f".{TIMESTAMPS[i].year}-{TIMESTAMPS[i + 4].year}.png"),
-                            bbox_inches='tight', dpi=300)
+    def build_axes(df: DataFrame, xmax: int):
+        axes = df.plot.barh(width=0.8, color=COLORS, grid=True, xlim=(0, xmax))
 
-        axes.figure.show()
-        plt.close()
+        axes.set_xlabel('Hits' if df is hits else 'Fresh Hits')
+        axes.set_xticks(arange(0, xmax + (xmax / 10), xmax / 10))
+        axes.xaxis.set_major_formatter(PercentFormatter(xmax=xmax))
+        axes.set_yticks(*get_year_ticks())
+        axes.invert_yaxis()
+        axes.legend([f"{bucket}k" for bucket in df.columns], ncol=5, loc='upper center', bbox_to_anchor=(0.5, 1.05))
+        return axes
+
+    axes = build_axes(hits, NUMBER_URLS // 10)
+    axes.figure.savefig(json_to_plots_path(hits_input_path, f".{TIMESTAMPS[0].year}-{TIMESTAMPS[-1].year}.png"),
+                        bbox_inches='tight', dpi=300)
+    axes.figure.show()
+
+    axes = build_axes(fresh_hits / hits, 1)
+    axes.figure.savefig(json_to_plots_path(fresh_hits_input_path, f".{TIMESTAMPS[0].year}-{TIMESTAMPS[-1].year}.png"),
+                        bbox_inches='tight', dpi=300)
+    axes.figure.show()
+
+    plt.close()
 
 
 @latexify(xtick_minor_visible=True)
@@ -96,8 +109,8 @@ def main():
         for tolerance in None, 7 * 6:
             plot_drifts(join_with_json_path(f"DRIFTS-{table_name}.{tolerance}.json"), tolerance)
 
-    for tolerance in None, 7 * 6:
-        plot_hits_per_buckets(join_with_json_path(f"BUCKETS-{RANDOM_SAMPLING_TABLE_NAME}.{tolerance}.json"))
+    plot_hits_per_buckets(join_with_json_path(f"BUCKETS-{RANDOM_SAMPLING_TABLE_NAME}.None.json"),
+                          join_with_json_path(f"BUCKETS-{RANDOM_SAMPLING_TABLE_NAME}.42.json"))
 
 
 if __name__ == '__main__':
