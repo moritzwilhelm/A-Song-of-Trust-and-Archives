@@ -7,7 +7,9 @@ from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 from psycopg2.extras import Json
 
-from analysis.analysis_utils import parse_hostname, parse_site
+from analysis.analysis_utils import parse_hostname, parse_site, is_disconnect_tracker, \
+    is_easyprivacy_tracker
+from analysis.header_utils import parse_origin
 from configs.database import STORAGE, get_database_cursor
 from data_collection.collect_archive_data import TABLE_NAME as ARCHIVE_TABLE_NAME
 from data_collection.collect_archive_neighborhoods import TABLE_NAME as NEIGHBORHOODS_TABLE_NAME
@@ -38,11 +40,13 @@ def setup_metadata_table() -> None:
                 relevant_sources JSONB,
                 hosts JSONB,
                 sites JSONB,
+                disconnect_trackers JSONB,
+                easyprivacy_trackers JSONB,
                 analysis_datetime TIMESTAMPTZ DEFAULT NOW()
             );
         """)
 
-        for column in ['content_hash', 'hosts', 'sites', 'analysis_datetime']:
+        for column in ['content_hash', 'hosts', 'sites', 'disconnect_trackers', 'easyprivacy_trackers']:
             cursor.execute(f"""
                 CREATE INDEX IF NOT EXISTS {METADATA_TABLE_NAME}_{column}_idx ON {METADATA_TABLE_NAME} ({column})
             """)
@@ -50,7 +54,7 @@ def setup_metadata_table() -> None:
 
 def live_sources_filter(sources: set[str]) -> set[str]:
     """Collect all sources."""
-    return sources
+    return {source for source in sources if re.match(r"https?://.*", source) is not None}
 
 
 def archive_sources_filter(sources: set[str]) -> set[str]:
@@ -71,13 +75,19 @@ def worker(jobs: list[AnalysisJob]) -> None:
 
             hosts = {parse_hostname(source) for source in relevant_sources}
             sites = {parse_site(source) for source in relevant_sources}
+            disconnect_trackers = {source for source in relevant_sources
+                                   if is_disconnect_tracker(source, parse_origin(end_url))}
+            easyprivacy_trackers = {source for source in relevant_sources
+                                    if is_easyprivacy_tracker(source, parse_origin(end_url))}
 
             cursor.execute(f"""
-                INSERT INTO {METADATA_TABLE_NAME} (content_hash, sources, relevant_sources, hosts, sites)
-                VALUES (%s, %s, %s, %s, %s)
+                INSERT INTO {METADATA_TABLE_NAME}
+                (content_hash, sources, relevant_sources, hosts, sites, disconnect_trackers, easyprivacy_trackers)
+                VALUES
+                (%s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT DO NOTHING
-            """, (content_hash,
-                  Json(sorted(sources)), Json(sorted(relevant_sources)), Json(sorted(hosts)), Json(sorted(sites))))
+            """, (content_hash, Json(sorted(sources)), Json(sorted(relevant_sources)), Json(sorted(hosts)),
+                  Json(sorted(sites)), Json(sorted(disconnect_trackers)), Json(sorted(easyprivacy_trackers))))
 
 
 def prepare_jobs(table_name: str,

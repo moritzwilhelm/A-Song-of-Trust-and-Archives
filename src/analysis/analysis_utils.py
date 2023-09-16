@@ -43,15 +43,23 @@ def parse_site(url: str) -> str:
     return extract(url).registered_domain
 
 
-def is_tracker(script_url: str, first_party_origin: Origin) -> bool:
-    """Checks if `script_url` can be classified as a tracker according to either Disconnect or EasyPrivacy."""
-    if is_third_party := parse_origin(script_url) != first_party_origin:
-        if parse_hostname(script_url) in DISCONNECT_TRACKERS or parse_site(script_url) in DISCONNECT_TRACKERS:
-            return True
+@cache
+def is_third_party(script_url: str, first_party_origin: Origin) -> bool:
+    """Determine if included script is a third-party script."""
+    return parse_origin(script_url) != first_party_origin
 
+
+def is_disconnect_tracker(script_url: str, first_party_origin: Origin) -> bool:
+    """Checks if `script_url` can be classified as a tracker according to Disconnect."""
+    return (is_third_party(script_url, first_party_origin) and
+            (parse_hostname(script_url) in DISCONNECT_TRACKERS or parse_site(script_url) in DISCONNECT_TRACKERS))
+
+
+def is_easyprivacy_tracker(script_url: str, first_party_origin: Origin) -> bool:
+    """Checks if `script_url` can be classified as a tracker according to EasyPrivacy."""
     options = {
         'script': True,
-        'third-party': is_third_party,
+        'third-party': is_third_party(script_url, first_party_origin),
         'domain': parse_hostname(script_url)
     }
 
