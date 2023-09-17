@@ -1,11 +1,11 @@
 import json
 from collections import defaultdict
-from datetime import datetime, date as date_type, timedelta
+from datetime import datetime, timedelta
 from typing import Callable
 
 from tqdm import tqdm
 
-from analysis.analysis_utils import timedelta_to_days, is_tracker
+from analysis.analysis_utils import timedelta_to_days, parse_site
 from analysis.header_utils import Headers, Origin, parse_origin, normalize_headers, classify_headers
 from analysis.live.stability_enums import Status
 from analysis.post_processing.extract_script_metadata import METADATA_TABLE_NAME
@@ -16,84 +16,84 @@ from data_collection.collect_live_data import TABLE_NAME as LIVE_TABLE_NAME
 
 
 def analyze_live_headers(targets: list[tuple[int, str, str]],
-                         start: date_type = get_min_timestamp(LIVE_TABLE_NAME).date(),
-                         end: date_type = get_max_timestamp(LIVE_TABLE_NAME).date(),
+                         start: datetime = get_min_timestamp(LIVE_TABLE_NAME),
+                         end: datetime = get_max_timestamp(LIVE_TABLE_NAME),
                          aggregation_function: Callable[[Headers, Origin | None], Headers] = normalize_headers) -> None:
-    """Compute the stability of (crawled) live security headers from `start` date up to (inclusive) `end` date."""
+    """Compute the stability of (crawled) live security headers from `start` up to (inclusive) `end`."""
     assert start <= end
 
     live_data = {}
     with get_database_cursor() as cursor:
         cursor.execute(f"""
-            SELECT tranco_id, timestamp::date, headers, end_url
+            SELECT tranco_id, timestamp, headers, end_url
             FROM {LIVE_TABLE_NAME}
-            WHERE status_code=200 AND timestamp::date BETWEEN %s AND %s
+            WHERE status_code=200 AND timestamp BETWEEN %s AND %s
         """, (start, end))
-        for tid, date, headers, end_url in cursor.fetchall():
-            live_data[tid, date] = (headers, aggregation_function(headers, parse_origin(end_url)))
+        for tid, timestamp, headers, end_url in cursor.fetchall():
+            live_data[tid, timestamp] = (headers, aggregation_function(headers, parse_origin(end_url)))
 
     result = {tid: {header: {'DEPLOYS': False} for header in RELEVANT_HEADERS} for tid, _, _ in targets}
     for tid, _, _ in tqdm(targets):
         seen_values = defaultdict(set)
-        for date in date_range(start, end):
-            if (tid, date) in live_data:
-                headers, aggregated_headers = live_data[tid, date]
+        for timestamp in date_range(start, end):
+            if (tid, timestamp) in live_data:
+                headers, aggregated_headers = live_data[tid, timestamp]
                 for header in RELEVANT_HEADERS:
                     seen_values[header].add(aggregated_headers[header])
-                    result[tid][header][str(date)] = len(seen_values[header]) == 1
+                    result[tid][header][str(timestamp)] = len(seen_values[header]) == 1
                     result[tid][header]['DEPLOYS'] |= header in headers
             else:
-                previous_timestamp = str(date - timedelta(days=1))
+                previous_timestamp = str(timestamp - timedelta(days=1))
                 for header in RELEVANT_HEADERS:
-                    result[tid][header][str(date)] = result[tid][header].get(previous_timestamp, True)
+                    result[tid][header][str(timestamp)] = result[tid][header].get(previous_timestamp, True)
 
     with open(join_with_json_path(f"STABILITY-{LIVE_TABLE_NAME}.{aggregation_function.__name__}.json"), 'w') as file:
         json.dump(result, file, indent=2, sort_keys=True)
 
 
 def analyze_live_js_inclusions(targets: list[tuple[int, str, str]],
-                               start: date_type = get_min_timestamp(LIVE_TABLE_NAME).date(),
-                               end: date_type = get_max_timestamp(LIVE_TABLE_NAME).date()) -> None:
+                               start: datetime = get_min_timestamp(LIVE_TABLE_NAME),
+                               end: datetime = get_max_timestamp(LIVE_TABLE_NAME)) -> None:
     """Compute the stability of (crawled) live security headers from `start` date up to (inclusive) `end` date."""
     assert start <= end
 
     live_data = {}
     with get_database_cursor() as cursor:
         cursor.execute(f"""
-            SELECT tranco_id, timestamp::date, relevant_sources, hosts, sites, end_url
+            SELECT tranco_id, timestamp,
+                   relevant_sources, hosts, sites, disconnect_trackers, easyprivacy_trackers, end_url
             FROM {LIVE_TABLE_NAME} JOIN {METADATA_TABLE_NAME} USING (content_hash)
-            WHERE status_code=200 AND timestamp::date BETWEEN %s AND %s
+            WHERE status_code=200 AND timestamp BETWEEN %s AND %s
         """, (start, end))
-        for tid, date, *data, end_url in cursor.fetchall():
-            live_data[tid, date] = (*map(tuple, data), parse_origin(end_url))
+        for tid, timestamp, *data, end_url in cursor.fetchall():
+            live_data[tid, timestamp] = (*map(tuple, data), parse_origin(end_url))
 
     result = defaultdict(lambda: defaultdict(dict))
     for tid, _, _ in tqdm(targets):
         seen_values = defaultdict(set)
         includes_scripts = False
         includes_trackers = False
-        for date in date_range(start, end):
-            if (tid, date) in live_data:
-                relevant_sources, hosts, sites, origin = live_data[tid, date]
+        for timestamp in date_range(start, end):
+            if (tid, timestamp) in live_data:
+                relevant_sources, hosts, sites, disconnect, easyprivacy, origin = live_data[tid, timestamp]
                 includes_scripts |= len(relevant_sources) > 0
-                seen_values['urls'].add(relevant_sources)
-                result[tid]['urls'][str(date)] = len(seen_values['urls']) == 1
+                seen_values['scripts'].add(relevant_sources)
+                result[tid]['scripts'][str(timestamp)] = len(seen_values['scripts']) == 1
                 seen_values['hosts'].add(hosts)
-                result[tid]['hosts'][str(date)] = len(seen_values['hosts']) == 1
+                result[tid]['hosts'][str(timestamp)] = len(seen_values['hosts']) == 1
                 seen_values['sites'].add(sites)
-                result[tid]['sites'][str(date)] = len(seen_values['sites']) == 1
+                result[tid]['sites'][str(timestamp)] = len(seen_values['sites']) == 1
 
-                trackers = tuple(sorted({script for script in relevant_sources if is_tracker(script, origin)}))
+                trackers = tuple(sorted(set(map(parse_site, disconnect)) | set(map(parse_site, easyprivacy))))
                 includes_trackers |= len(trackers) > 0
                 seen_values['trackers'].add(trackers)
-                result[tid]['trackers'][str(date)] = len(seen_values['trackers']) == 1
+                result[tid]['trackers'][str(timestamp)] = len(seen_values['trackers']) == 1
             else:
-                previous_timestamp = str(date - timedelta(days=1))
-                result[tid]['urls'][str(date)] = result[tid]['urls'].get(previous_timestamp, True)
-                result[tid]['hosts'][str(date)] = result[tid]['hosts'].get(previous_timestamp, True)
-                result[tid]['sites'][str(date)] = result[tid]['sites'].get(previous_timestamp, True)
-                result[tid]['urls'][str(date)] = result[tid]['urls'].get(previous_timestamp, True)
-                result[tid]['trackers'][str(date)] = result[tid]['trackers'].get(previous_timestamp, True)
+                previous_timestamp = str(timestamp - timedelta(days=1))
+                result[tid]['scripts'][str(timestamp)] = result[tid]['scripts'].get(previous_timestamp, True)
+                result[tid]['hosts'][str(timestamp)] = result[tid]['hosts'].get(previous_timestamp, True)
+                result[tid]['sites'][str(timestamp)] = result[tid]['sites'].get(previous_timestamp, True)
+                result[tid]['trackers'][str(timestamp)] = result[tid]['trackers'].get(previous_timestamp, True)
         result[tid]['INCLUDES_SCRIPTS'] = includes_scripts
         result[tid]['INCLUDES_TRACKERS'] = includes_trackers
 
@@ -129,7 +129,7 @@ def analyze_archived_snapshots(targets: list[tuple[int, str, str]],
             previous_snapshot = None
             was_removed = False
             current_drifts = {}
-            for i, date in enumerate(date_range(requested_date.date(), requested_date.date() + timedelta(n))):
+            for i, date in enumerate(date_range(requested_date.date(), requested_date.date() + timedelta(days=n))):
                 if (tid, date) not in archive_data:
                     match previous_status:
                         case Status.ADDED | Status.MODIFIED:
