@@ -5,8 +5,8 @@ from pathlib import Path
 
 from tqdm import tqdm
 
-from analysis.analysis_utils import is_tracker
-from analysis.header_utils import HeadersDecoder, parse_origin
+from analysis.analysis_utils import parse_site
+from analysis.header_utils import HeadersDecoder
 from analysis.post_processing.extract_script_metadata import METADATA_TABLE_NAME
 from configs.analysis import MEMENTO_HEADER
 from configs.crawling import TIMESTAMPS
@@ -32,7 +32,7 @@ def analyze_inclusions() -> None:
 
             relevant_sources_count, hosts_count, sites_count = cursor.fetchone()
             inclusions[str(timestamp)] = {
-                'urls': relevant_sources_count,
+                'scripts': relevant_sources_count,
                 'hosts': hosts_count,
                 'sites': sites_count
             }
@@ -54,12 +54,12 @@ def analyze_inclusion_bounds(urls: list[tuple[int, str, str]], neighborhoods_pat
                 continue
 
             scripts = defaultdict(list)
-            for *_, relevant_sources, hosts, sites in neighborhoods[str(tid)][str(timestamp)]:
-                scripts['urls'].append(set(relevant_sources))
+            for *_, relevant_sources, hosts, sites, _, _ in neighborhoods[str(tid)][str(timestamp)]:
+                scripts['scripts'].append(set(relevant_sources))
                 scripts['hosts'].append(set(hosts))
                 scripts['sites'].append(set(sites))
 
-            for granularity in 'urls', 'hosts', 'sites':
+            for granularity in 'scripts', 'hosts', 'sites':
                 result[tid][granularity][str(timestamp)] = {
                     'Union': len(set.union(*scripts[granularity])) if scripts[granularity] else 0,
                     'Intersection': len(set.intersection(*scripts[granularity])) if scripts[granularity] else 0
@@ -88,8 +88,8 @@ def analyze_trackers(urls: list[tuple[int, str, str]], neighborhoods_path: Path)
                 continue
 
             trackers = []
-            for _, _, end_url, _, _, scripts, _, _ in neighborhoods[str(tid)][str(timestamp)]:
-                trackers.append({script for script in scripts if is_tracker(script, parse_origin(end_url))})
+            for *_, disconnect_trackers, easyprivacy_trackers in neighborhoods[str(tid)][str(timestamp)]:
+                trackers.append(set(map(parse_site, disconnect_trackers)) | set(map(parse_site, easyprivacy_trackers)))
 
             result[tid][str(timestamp)] = {
                 'Union': sorted(set.union(*trackers)) if trackers else [],
