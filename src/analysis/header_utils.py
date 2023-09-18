@@ -40,11 +40,14 @@ class Origin(NamedTuple):
 @cache
 def parse_origin(url: str) -> Origin:
     """Extract the origin of a given URL."""
-    parsed_url = parse_url(url)
+    try:
+        parsed_url = parse_url(url)
+    except Exception:
+        return Origin(*url.split('://', 1), None)
 
     # Very few snapshot URLs in the IA are missing a "/" after the protocol. We insert it again to have a valid origin.
     if parsed_url.host is None:
-        parsed_url = parse_url(re.sub(r"^(https?):/(?!/)", r"\1://", url))
+        parsed_url = parse_url(re.sub(r"^(https?):/*\\*", r"\1://", url))
 
     return Origin(parsed_url.scheme.lower(), parsed_url.host.lower(), parsed_url.port)
 
