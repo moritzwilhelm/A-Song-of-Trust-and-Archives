@@ -38,8 +38,8 @@ def build_neighborhoods(targets: list[tuple[int, str, str]], n: int = 10) -> Non
     archive_data = {}
     with get_database_cursor() as cursor:
         cursor.execute(f"""
-            SELECT tranco_id, timestamp, 
-                   (headers->>%s)::TIMESTAMPTZ, headers, substring(end_url FROM %s), status_code, contributor, 
+            SELECT tranco_id, timestamp,
+                   (headers->>%s)::TIMESTAMPTZ, headers, substring(end_url FROM %s), status_code, contributor,
                    relevant_sources, hosts, sites, disconnect_trackers, easyprivacy_trackers
             FROM {NEIGHBORHOODS_TABLE_NAME}
             JOIN {SCRIPTS_TABLE_NAME} USING (content_hash)

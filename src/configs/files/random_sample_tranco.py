@@ -17,7 +17,7 @@ def sample(buckets: int = 10, domains_per_bucket: int = 2000) -> None:
     for i in range(buckets):
         sampled_lines += random.sample(lines[bucket_size * i:bucket_size * (i + 1)], domains_per_bucket)
 
-    with open(get_absolute_tranco_file_path().parent.joinpath(f"tranco_random_sample_{SEED}.csv"), 'w') as file:
+    with open(get_absolute_tranco_file_path().parent.joinpath(f"tranco_random_sample.{SEED}.csv"), 'w') as file:
         file.writelines(sorted(sampled_lines, key=lambda data: int(data.split(',')[0])))
 
 
