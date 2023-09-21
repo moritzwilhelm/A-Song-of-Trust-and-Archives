@@ -61,9 +61,9 @@ def analyze_headers(targets: list[tuple[int, str, str]]) -> None:
                    substring(a.end_url FROM %s), a.status_code, a.headers, a.content_hash, (a.headers->>%s)::TIMESTAMPTZ
             FROM {LIVE_TABLE_NAME} l JOIN {ARCHIVE_TABLE_NAME} a USING (tranco_id, status_code, timestamp)
             WHERE l.status_code IS NOT NULL AND a.headers->>%s IS NOT NULL AND timestamp=%s
-        """, (MEMENTO_HEADER.lower(), INTERNET_ARCHIVE_END_URL_REGEX, MEMENTO_HEADER.lower(), TIMESTAMP))
-        for tid, *data, archived_headers, archived_timestamp in cursor.fetchall():
-            analysis_data[tid] = (*data, parse_archived_headers(archived_headers), archived_timestamp)
+        """, (INTERNET_ARCHIVE_END_URL_REGEX, MEMENTO_HEADER.lower(), MEMENTO_HEADER.lower(), TIMESTAMP))
+        for tid, *data, a_headers, a_content_hash, a_timestamp in cursor.fetchall():
+            analysis_data[tid] = (*data, parse_archived_headers(a_headers), a_content_hash, a_timestamp)
 
     result = defaultdict(set)
     for tid, domain, url in tqdm(targets):
@@ -179,6 +179,7 @@ def merge_disagreement_reasons(disagreement_file: Path, user_agent_sniffing_file
                 set(disagreement[f"{granularity}"])
                 - set(disagreement[f"{granularity}::ORIGIN_MISMATCH"])
                 - set(disagreement[f"{granularity}::USER_AGENT"])
+                - set(disagreement[f"{granularity}::TITLE_DIFFERENCE"])
         )
         for mechanism in SECURITY_MECHANISM_HEADERS:
             disagreement[f"{granularity}_{mechanism}::USER_AGENT"] = user_agent_sniffing[f"{granularity}_{mechanism}"]
@@ -186,6 +187,7 @@ def merge_disagreement_reasons(disagreement_file: Path, user_agent_sniffing_file
                     set(disagreement[f"{granularity}_{mechanism}"])
                     - set(disagreement[f"{granularity}_{mechanism}::ORIGIN_MISMATCH"])
                     - set(disagreement[f"{granularity}_{mechanism}::USER_AGENT"])
+                    - set(disagreement[f"{granularity}_{mechanism}::TITLE_DIFFERENCE"])
             )
 
     raw_output_path = join_with_json_path(f"DISAGREEMENT-HEADERS-{LIVE_TABLE_NAME}-{ARCHIVE_TABLE_NAME}.RAW.json")
@@ -202,16 +204,16 @@ def analyze_javascript(targets: list[tuple[int, str, str]]) -> None:
     analysis_data = {}
     with get_database_cursor() as cursor:
         cursor.execute(f"""
-            SELECT tranco_id, l.end_url, l.status_code, 
+            SELECT tranco_id, l.end_url, l.status_code,
                    sl.relevant_sources, sl.hosts, sl.sites, sl.disconnect_trackers, sl.easyprivacy_trackers,
-                   substring(a.end_url FROM %s), a.status_code, 
+                   substring(a.end_url FROM %s), a.status_code,
                    sa.relevant_sources, sa.hosts, sa.sites, sa.disconnect_trackers, sa.easyprivacy_trackers,
                    (a.headers->>%s)::TIMESTAMPTZ
             FROM {LIVE_TABLE_NAME} l JOIN {ARCHIVE_TABLE_NAME} a USING (tranco_id, status_code, timestamp)
             JOIN {METADATA_TABLE_NAME} sl ON l.content_hash=sl.content_hash
             JOIN {METADATA_TABLE_NAME} sa ON a.content_hash=sa.content_hash
             WHERE l.status_code IS NOT NULL AND a.headers->>%s IS NOT NULL AND timestamp=%s
-        """, (MEMENTO_HEADER.lower(), INTERNET_ARCHIVE_END_URL_REGEX, MEMENTO_HEADER.lower(), TIMESTAMP))
+        """, (INTERNET_ARCHIVE_END_URL_REGEX, MEMENTO_HEADER.lower(), MEMENTO_HEADER.lower(), TIMESTAMP))
         for tid, *data in cursor.fetchall():
             analysis_data[tid] = tuple(data)
 
