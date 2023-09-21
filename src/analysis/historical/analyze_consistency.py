@@ -33,7 +33,8 @@ def analyze_consistency(urls: list[tuple[int, str, str]],
                 result[tid][security_mechanism][str(timestamp)] = (
                     deploys[header],
                     len(seen_values[security_mechanism]),
-                    len(neighborhoods[str(tid)][str(timestamp)])
+                    len(neighborhoods[str(tid)][str(timestamp)]),
+                    any(header not in headers for _, headers, *_ in neighborhoods[str(tid)][str(timestamp)])
                 )
 
     output_path_name = f"CONSISTENCY-{neighborhoods_path.with_suffix(f'.{aggregation_function.__name__}.json').name}"
