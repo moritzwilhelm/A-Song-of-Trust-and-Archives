@@ -1,5 +1,6 @@
 import json
 from collections import Counter
+from datetime import datetime
 from pathlib import Path
 
 from pandas import DataFrame, concat, Series
@@ -11,6 +12,8 @@ from analysis.header_utils import HeadersDecoder, parse_origin, classify_headers
 from configs.analysis import SECURITY_MECHANISM_HEADERS
 from configs.crawling import TIMESTAMPS
 from configs.utils import join_with_json_path, get_tranco_data
+
+THRESHOLD_FACTOR = 0.75
 
 
 def encode_non_numeric_features(df: DataFrame, features: list[str]) -> DataFrame:
@@ -42,7 +45,7 @@ def compute_information_gain(training_data: DataFrame, target_values: Series) ->
             weighted_gini = (n_node_samples[1] / n_node_samples[0]) * impurity[1] + \
                             (n_node_samples[2] / n_node_samples[0]) * impurity[2]
 
-            if weighted_gini != impurity[0]:
+            if weighted_gini <= impurity[0] * THRESHOLD_FACTOR:
                 information_gain[feature] = impurity[0] - weighted_gini
     return information_gain
 
@@ -65,12 +68,13 @@ def attribute_differences(urls: list[tuple[int, str, str]], neighborhoods_path: 
             df['origin'] = df['end_url'].apply(parse_origin)
             df['headers_security'] = df.apply(lambda row: classify_headers(row['headers'], row['origin']), axis=1)
             df['origin'] = df['origin'].apply(str)
+            df['archival date'] = df['archived_timestamp'].apply(lambda ts: datetime.fromisoformat(ts).date())
 
             training_data = df[['contributor', 'origin', 'status_code']].copy()
-            for archived_timestamp in df['archived_timestamp'].sort_values().iloc[1:-2]:
-                training_data[f"archival time::<= {archived_timestamp}"] = df['archived_timestamp'].apply(
-                    lambda row: row <= archived_timestamp
-                )
+            for archival_date in df['archival date'].sort_values().iloc[1:-2]:
+                assert len(df['archival date']) >= 4
+                feature_name = f"archival date::<= {archival_date}"
+                training_data[feature_name] = df['archival date'].apply(lambda date: date <= archival_date)
 
             training_data = encode_non_numeric_features(training_data, ['contributor', 'origin'])
 
