@@ -46,7 +46,7 @@ def setup_metadata_table() -> None:
             );
         """)
 
-        for column in ['content_hash', 'hosts', 'sites', 'disconnect_trackers', 'easyprivacy_trackers']:
+        for column in ['content_hash', 'hosts', 'sites']:
             cursor.execute(f"""
                 CREATE INDEX IF NOT EXISTS {METADATA_TABLE_NAME}_{column}_idx ON {METADATA_TABLE_NAME} ({column})
             """)

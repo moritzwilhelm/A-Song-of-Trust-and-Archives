@@ -22,7 +22,7 @@ def analyze_inclusions() -> None:
         for timestamp in tqdm(TIMESTAMPS):
             cursor.execute(f"""
                 SELECT ARRAY_AGG(urls_count), ARRAY_AGG(hosts_count), ARRAY_AGG(sites_count) FROM (
-                    SELECT JSONB_ARRAY_LENGTH(relevant_sources) AS urls_count, 
+                    SELECT JSONB_ARRAY_LENGTH(relevant_sources) AS urls_count,
                            JSONB_ARRAY_LENGTH(hosts) AS hosts_count,
                            JSONB_ARRAY_LENGTH(sites) AS sites_count
                     FROM {ARCHIVE_TABLE_NAME} JOIN {METADATA_TABLE_NAME} USING (content_hash)
