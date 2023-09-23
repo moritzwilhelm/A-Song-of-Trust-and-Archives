@@ -1,6 +1,6 @@
 import gzip
 import json
-from collections import defaultdict, Counter
+from collections import defaultdict
 from datetime import datetime, timedelta, UTC
 from pathlib import Path
 
@@ -129,17 +129,9 @@ def analyze_user_agent_sniffing(disagreement_file: Path) -> None:
     for url in tqdm(disagreement['DIFFERENT']):
         try:
             chrome = crawl(url, store_content=False)
-        except CrawlingException:
-            result['ERROR_CHROME'].add(url)
-
-        try:
             archive_org = crawl(url, user_agent=ARCHIVE_IT_USER_AGENT, store_content=False)
         except CrawlingException:
-            result['ERROR_ARCHIVE_BOT'].add(url)
-
-        if url in result['ERROR_CHROME'] or url in result['ERROR_ARCHIVE_BOT']:
-            if url in result['ERROR_CHROME'] and url in result['ERROR_ARCHIVE_BOT']:
-                result['ERROR_BOTH'].add(url)
+            result['ERROR'].add(url)
             continue
 
         normalized_chrome = normalize_headers(chrome.headers)
@@ -204,9 +196,9 @@ def analyze_javascript(targets: list[tuple[int, str, str]]) -> None:
     analysis_data = {}
     with get_database_cursor() as cursor:
         cursor.execute(f"""
-            SELECT tranco_id, l.end_url, l.status_code,
+            SELECT tranco_id, l.end_url, l.status_code, l.content_hash,
                    sl.relevant_sources, sl.hosts, sl.sites, sl.disconnect_trackers, sl.easyprivacy_trackers,
-                   substring(a.end_url FROM %s), a.status_code,
+                   substring(a.end_url FROM %s), a.status_code, a.content_hash,
                    sa.relevant_sources, sa.hosts, sa.sites, sa.disconnect_trackers, sa.easyprivacy_trackers,
                    (a.headers->>%s)::TIMESTAMPTZ
             FROM {LIVE_TABLE_NAME} l JOIN {ARCHIVE_TABLE_NAME} a USING (tranco_id, status_code, timestamp)
@@ -218,15 +210,16 @@ def analyze_javascript(targets: list[tuple[int, str, str]]) -> None:
             analysis_data[tid] = tuple(data)
 
     result = defaultdict(set)
-    script_difference_count = Counter()
     for tid, domain, url in tqdm(targets):
         if tid not in analysis_data:
             result['FAIL'].add(url)
             continue
 
-        (live_end_url, live_status_code, live_scripts, live_hosts, live_sites, live_disconnect, live_easyprivacy,
-         archived_end_url, archived_status_code, archive_scripts, archived_hosts, archived_sites, archived_disconnect,
-         archived_easyprivacy, memento_datetime) = analysis_data[tid]
+        (live_end_url, live_status_code, live_hash,
+         live_scripts, live_hosts, live_sites, live_disconnect, live_easyprivacy,
+         archived_end_url, archived_status_code, archived_hash,
+         archive_scripts, archived_hosts, archived_sites, archived_disconnect, archived_easyprivacy,
+         memento_datetime) = analysis_data[tid]
 
         if parse_origin(live_end_url) != parse_origin(archived_end_url):
             result['ORIGIN_MISMATCH'].add(url)
@@ -252,13 +245,11 @@ def analyze_javascript(targets: list[tuple[int, str, str]]) -> None:
                 result['DIFFERENT_HOSTS'].add(url)
             if live_sites != archived_sites:
                 result['DIFFERENT_SITES'].add(url)
-                for site in live_sites - archived_sites:
-                    script_difference_count[site] += 1
-                for site in archived_sites - live_sites:
-                    script_difference_count[site] += 1
 
             if bool(live_scripts) ^ bool(archive_scripts):
-                result['SCRIPTS_INCLUSION_EITHER_MISSING'].add(url)
+                result['DIFFERENT_SCRIPTS::EITHER_MISSING'].add(url)
+                result['DIFFERENT_HOSTS::EITHER_MISSING'].add(url)
+                result['DIFFERENT_SITES::EITHER_MISSING'].add(url)
 
         live_trackers = set(map(parse_site, live_disconnect)) | set(map(parse_site, live_easyprivacy))
         archived_trackers = set(map(parse_site, archived_disconnect)) | set(map(parse_site, archived_easyprivacy))
@@ -270,7 +261,22 @@ def analyze_javascript(targets: list[tuple[int, str, str]]) -> None:
                 result['DIFFERENT_TRACKERS'].add(url)
 
             if bool(live_trackers) ^ bool(archived_trackers):
-                result['TRACKER_INCLUSION_EITHER_MISSING'].add(url)
+                result['DIFFERENT_TRACKERS::EITHER_MISSING'].add(url)
+
+        # check if inconsistency can be attributed to a specific reason
+        if url in result['DIFFERENT_SCRIPTS']:
+            live_filename = STORAGE.joinpath(live_hash[0], live_hash[1], f"{live_hash}.gz")
+            with gzip.open(live_filename) as file:
+                live_title = BeautifulSoup(file.read(), 'html5lib').title
+
+            archived_filename = STORAGE.joinpath(archived_hash[0], archived_hash[1], f"{archived_hash}.gz")
+            with gzip.open(archived_filename) as file:
+                archived_title = BeautifulSoup(file.read(), 'html5lib').title
+
+            if live_title != archived_title:
+                for category in 'DIFFERENT_SCRIPTS', 'DIFFERENT_HOSTS', 'DIFFERENT_SITES', 'DIFFERENT_TRACKERS':
+                    if url in result[category]:
+                        result[f'{category}::TITLE_DIFFERENCE'].add(url)
 
     with open(join_with_json_path(f"DISAGREEMENT-JS-{LIVE_TABLE_NAME}-{ARCHIVE_TABLE_NAME}.RAW.json"), 'w') as file:
         json.dump(result, file, indent=2, sort_keys=True, default=list)
@@ -278,9 +284,6 @@ def analyze_javascript(targets: list[tuple[int, str, str]]) -> None:
     result = {key: len(value) for key, value in result.items()}
     with open(join_with_json_path(f"DISAGREEMENT-JS-{LIVE_TABLE_NAME}-{ARCHIVE_TABLE_NAME}.json"), 'w') as file:
         json.dump(result, file, indent=2, sort_keys=True)
-
-    with open(join_with_json_path(f"DISAGREEMENT-JS-CAUSE-{LIVE_TABLE_NAME}-{ARCHIVE_TABLE_NAME}.json"), 'w') as file:
-        json.dump(script_difference_count, file, indent=2, sort_keys=True)
 
 
 def main():
