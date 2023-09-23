@@ -20,7 +20,7 @@ WORKERS = 128
 
 METADATA_TABLE_NAME = 'HTML_SCRIPT_METADATA'
 
-INTERNET_ARCHIVE_SOURCE_REGEX = r"https?://web\.archive\.org/web/\d+(js_)?/(https?://.*)"
+INTERNET_ARCHIVE_SOURCE_REGEX = r"https?://web\.archive\.org/web/\d+(id_|js_)?/(https?://.*)"
 
 
 class AnalysisJob(NamedTuple):
