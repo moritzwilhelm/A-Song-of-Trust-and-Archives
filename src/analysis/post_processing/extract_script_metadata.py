@@ -1,7 +1,7 @@
 import gzip
 import re
 from multiprocessing import Pool
-from typing import NamedTuple, Callable
+from typing import NamedTuple
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup
@@ -10,6 +10,7 @@ from psycopg2.extras import Json
 from analysis.analysis_utils import parse_hostname, parse_site, is_disconnect_tracker, \
     is_easyprivacy_tracker
 from analysis.header_utils import parse_origin
+from analysis.live.analyze_disagreement import ARCHIVE_TABLE_NAME as RECENT_ARCHIVE_TABLE_NAME
 from configs.crawling import WAYBACK_API_REGEX
 from configs.database import STORAGE, get_database_cursor
 from data_collection.collect_archive_data import TABLE_NAME as ARCHIVE_TABLE_NAME
@@ -118,7 +119,8 @@ def main():
     jobs = [
         *prepare_jobs(LIVE_TABLE_NAME),
         *prepare_jobs(ARCHIVE_TABLE_NAME),
-        *prepare_jobs(NEIGHBORHOODS_TABLE_NAME)
+        *prepare_jobs(NEIGHBORHOODS_TABLE_NAME),
+        *prepare_jobs(RECENT_ARCHIVE_TABLE_NAME)
     ]
     run_jobs(jobs)
 
