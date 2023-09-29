@@ -22,9 +22,6 @@ def plot_hits(hits_input_path: Path, fresh_hits_input_path: Path) -> None:
         fresh_hits = DataFrame.from_dict(json.load(file), orient='index', columns=['Fresh Hits'])
 
     data = hits.merge(fresh_hits, left_index=True, right_index=True)
-    print(hits_input_path, data['Fresh Hits'] / data['Hits'], sep='\n')
-    print((data['Fresh Hits'] / data['Hits']).min())
-    print((data['Fresh Hits'] / data['Hits']).max())
 
     axes = data.plot.bar(color=COLORS, grid=True, ylim=(0, NUMBER_URLS), width=0.75)
     axes.legend(loc='lower right')
@@ -94,7 +91,6 @@ def plot_hits_per_buckets(hits_input_path: Path, fresh_hits_input_path: Path) ->
     axes.figure.savefig(json_to_plots_path(fresh_hits_input_path, f".{TIMESTAMPS[0].year}-{TIMESTAMPS[-1].year}.png"),
                         bbox_inches='tight', dpi=300)
     axes.figure.show()
-
     plt.close()
 
 

@@ -10,10 +10,10 @@ from plotting.plotting_utils import COLORS, latexify
 CATEGORY_ABBREVIATIONS = {
     'Strict-Transport-Security': 'HSTS',
     'X-Frame-Options': 'XFO',
-    'Content-Security-Policy::FA': 'CSP-FA',
-    'Content-Security-Policy::XSS': 'CSP-XSS',
-    'Content-Security-Policy::TLS': 'CSP-TLS',
     'Content-Security-Policy': 'CSP',
+    'Content-Security-Policy::XSS': 'CSP-XSS',
+    'Content-Security-Policy::FA': 'CSP-FA',
+    'Content-Security-Policy::TLS': 'CSP-TLS',
     'Permissions-Policy': 'PP',
     'Referrer-Policy': 'RP',
     'Cross-Origin-Opener-Policy': 'COOP',
@@ -34,7 +34,7 @@ def plot_feature_importance(input_path: Path):
     df = df.reindex(list(CATEGORY_ABBREVIATIONS))
     axes = df.plot.bar(color=COLORS, grid=True, ylim=(0, 1), rot=45)
     axes.xaxis.set_major_formatter(lambda label, _: CATEGORY_ABBREVIATIONS[df.index[label]])
-    axes.set_ylabel('Inconsistent Neighborhoods')
+    axes.set_ylabel('Inconsistent neighborhoods')
     axes.yaxis.set_major_formatter(PercentFormatter(xmax=1.0))
     axes.legend(ncol=5, loc='upper center', bbox_to_anchor=(0.5, 1.13))
 

@@ -17,13 +17,13 @@ def plot_script_inclusions(input_path: Path):
         data = read_json(file, orient='index')
 
     df = DataFrame()
-    for column in 'urls', 'hosts', 'sites':
+    for column in 'scripts', 'hosts', 'sites':
         df[column] = data.explode(column).reset_index().pivot(columns='index', values=column).mean(axis=0)
 
-    axes = df.plot.bar(color=COLORS, grid=True)
-    axes.set_xlabel('Timestamp')
+    axes = df.plot.bar(color=COLORS, grid=True, width=0.9)
+    axes.set_xlabel('Timestamp', visible=False)
     axes.set_xticks(*get_year_ticks(), rotation=0)
-    axes.set_ylabel('Average number of inclusions')
+    axes.set_ylabel('Average number of third-party JavaScript dependencies')
     axes.yaxis.set_major_locator(MaxNLocator(integer=True, steps=[1], min_n_ticks=10))
 
     axes.figure.savefig(json_to_plots_path(input_path), bbox_inches='tight', dpi=300)
@@ -37,7 +37,7 @@ def plot_script_inclusion_bounds(input_path: Path):
     with open(input_path) as file:
         results = json.load(file)
 
-    for granularity in 'urls', 'hosts', 'sites':
+    for granularity in 'scripts', 'hosts', 'sites':
         df = DataFrame()
         for agg in 'Union', 'Intersection':
             df[agg] = [
@@ -47,15 +47,12 @@ def plot_script_inclusion_bounds(input_path: Path):
             df[agg] = df.explode(agg).reset_index().pivot(columns='index', values=agg).mean(axis=0)
 
         axes = df.plot(style=STYLE, color=COLORS, grid=True)
-        if granularity != 'urls':
-            axes.scatter(x=0, y=3.2, color='none')
-            axes.scatter(x=0, y=2.3, color='none')
 
-        axes.set_xlabel('Timestamp')
+        # axes.set_xlabel('Timestamp')
         axes.set_xticks(*get_year_ticks(), rotation=0)
         axes.xaxis.get_minor_ticks()[0].set_visible(False)
         axes.xaxis.get_minor_ticks()[-1].set_visible(False)
-        axes.set_ylabel('Average number of included scripts')
+        axes.set_ylabel('Average number of third-party JavaScript dependencies')
         axes.legend(ncol=3, loc='upper center', bbox_to_anchor=(0.5, 1.1))
 
         axes.figure.savefig(json_to_plots_path(input_path, f".{granularity}.png"), bbox_inches='tight', dpi=300)
@@ -77,7 +74,7 @@ def plot_domains_without_trackers(input_path: Path) -> None:
 
     axes = df.plot(style=STYLE, color=COLORS, grid=True)
 
-    axes.set_xlabel('Timestamp')
+    # axes.set_xlabel('Timestamp')
     axes.set_xticks(*get_year_ticks(), rotation=0)
     axes.xaxis.get_minor_ticks()[0].set_visible(False)
     axes.xaxis.get_minor_ticks()[-1].set_visible(False)
@@ -109,7 +106,7 @@ def plot_trackers(input_path: Path) -> None:
 
     axes = df.plot(style=STYLE, color=COLORS, grid=True)
 
-    axes.set_xlabel('Timestamp')
+    # axes.set_xlabel('Timestamp')
     axes.set_xticks(*get_year_ticks(), rotation=0)
     axes.xaxis.get_minor_ticks()[0].set_visible(False)
     axes.xaxis.get_minor_ticks()[-1].set_visible(False)
@@ -122,12 +119,42 @@ def plot_trackers(input_path: Path) -> None:
     plt.close()
 
 
+def plot_script_counts(input_path: Path) -> None:
+    """Plot the top 10 most frequently included trackers."""
+    with open(input_path) as file:
+        results = json.load(file)
+
+    for key, data in results.items():
+        top_scripts = sorted(data[str(TIMESTAMPS[-1])], key=data[str(TIMESTAMPS[-1])].get, reverse=True)[:10]
+
+        df = DataFrame()
+        for script in top_scripts:
+            df[script] = [data[str(timestamp)].get(script) for timestamp in TIMESTAMPS]
+
+        axes = df.plot(style=STYLE, color=COLORS, grid=True)
+
+        # axes.set_xlabel('Timestamp')
+        axes.set_xticks(*get_year_ticks(), rotation=0)
+        axes.xaxis.get_minor_ticks()[0].set_visible(False)
+        axes.xaxis.get_minor_ticks()[-1].set_visible(False)
+        axes.set_ylabel('Number of domains')
+        axes.legend(ncol=2, loc='upper center', bbox_to_anchor=(0.5, 1.33))
+
+        axes.figure.savefig(json_to_plots_path(input_path, extension=f".{key}.png"), bbox_inches='tight', dpi=300)
+
+        axes.figure.show()
+        plt.close()
+
+
 @latexify(xtick_minor_visible=True)
 def main():
     plot_script_inclusions(join_with_json_path(f"JAVASCRIPT-{ARCHIVE_TABLE_NAME}.json"))
     plot_script_inclusion_bounds(join_with_json_path(f"JAVASCRIPT-NEIGHBORHOODS.{10}.json"))
+
     plot_domains_without_trackers(join_with_json_path(f"TRACKERS-NEIGHBORHOODS.{10}.json"))
     plot_trackers(join_with_json_path(f"TRACKERS-NEIGHBORHOODS.{10}.json"))
+
+    plot_script_counts(join_with_json_path(f"JAVASCRIPT-COUNTS-NEIGHBORHOODS.{10}.json"))
 
 
 if __name__ == '__main__':

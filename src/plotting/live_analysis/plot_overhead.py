@@ -27,7 +27,7 @@ def plot_overhead(input_path: Path) -> None:
         flierprops=dict(linestyle='none', markersize=1, linewidth=0, color=COLORS[4]),
         showfliers=False
     )
-    axes.set_ylabel('Response Time in ms')
+    axes.set_ylabel('Response time in ms')
 
     axes.figure.savefig(json_to_plots_path(input_path), bbox_inches='tight', dpi=300)
 
