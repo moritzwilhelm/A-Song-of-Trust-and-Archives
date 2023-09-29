@@ -2,7 +2,7 @@ setuptools~=68.2.2
 wheel~=0.41.2
 
 # DATABASE
-psycopg2-binary~=2.9.7
+psycopg2-binary~=2.9.8
 
 # HTTP(S) REQUESTS & ANALYSIS
 requests~=2.31.0

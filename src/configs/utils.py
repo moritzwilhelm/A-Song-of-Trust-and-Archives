@@ -28,9 +28,9 @@ def json_to_plots_path(file_path: Path, extension: str = '.png') -> Path:
     return join_with_plots_path(file_path.with_suffix(extension).name)
 
 
-def get_absolute_tranco_file_path() -> Path:
+def get_absolute_tranco_file_path(filename: str = 'tranco_W9JG9.csv') -> Path:
     """Return absolute path to the Tranco file."""
-    return PROJECT_ROOT.joinpath('src', 'configs', 'files', 'tranco_W9JG9.csv')
+    return PROJECT_ROOT.joinpath('src', 'configs', 'files', filename)
 
 
 def get_tranco_data(tranco_file: Path = get_absolute_tranco_file_path(),
@@ -64,6 +64,7 @@ def get_disconnect_tracking_domains() -> set[str]:
 
 
 def get_easyprivacy_rules(supported_options: list[str], skip_unsupported_rules: bool) -> AdblockRules:
+    """Parse the EasyPrivacy rules and provide classifier."""
     with open(PROJECT_ROOT.joinpath('src', 'configs', 'files', 'easyprivacy.txt')) as file:
         return AdblockRules(
             file.read().splitlines(),

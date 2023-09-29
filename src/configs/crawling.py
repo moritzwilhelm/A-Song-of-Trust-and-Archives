@@ -37,9 +37,5 @@ WAYBACK_RELATIVE_SOURCE_REGEX = re.compile(rb"/web/\d+[^/]*/https?://[^/]*(/[^)\
 
 # SOCKS PROXIES PORT MAPPING
 SOCKS_PROXIES = {
-    '1221': 'maws@srv-r940-02.srv.cispa.saarland',
-    '1222': 'maws@srv-r940-03.srv.cispa.saarland',
-    '1223': 'maws@swag.cispa.saarland',
-    '1224': 'maws@stock.saarland',
-    '1225': 'maws@notify.cispa.de'
+    # '<PORT>': '<REMOTE>',
 }

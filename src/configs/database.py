@@ -11,14 +11,14 @@ from psycopg2.extras import register_default_jsonb
 from requests.structures import CaseInsensitiveDict
 
 # DATABASE
-DB_USER = 'archive'
-DB_PWD = 'archive'
-DB_HOST = '134.96.225.54'
-DB_PORT = 5432
-DB_NAME = 'archive_moritz'
+DB_USER = '<DB_USER>'
+DB_PWD = '<DB_PWD>'
+DB_HOST = '<DB_HOST>'
+DB_PORT = 1337
+DB_NAME = '<DB_NAME>'
 
 # STORAGE
-STORAGE = Path('/data/maws/')
+STORAGE = Path('<PATH/TO/DATA/DIRECTORY/>')
 
 
 def json_loads_ci(*args: Any, **kwargs: Any) -> Any:
