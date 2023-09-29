@@ -10,6 +10,7 @@ from psycopg2.extras import Json
 from analysis.analysis_utils import parse_hostname, parse_site, is_disconnect_tracker, \
     is_easyprivacy_tracker
 from analysis.header_utils import parse_origin
+from configs.crawling import WAYBACK_API_REGEX
 from configs.database import STORAGE, get_database_cursor
 from data_collection.collect_archive_data import TABLE_NAME as ARCHIVE_TABLE_NAME
 from data_collection.collect_archive_neighborhoods import TABLE_NAME as NEIGHBORHOODS_TABLE_NAME
@@ -27,7 +28,6 @@ class AnalysisJob(NamedTuple):
     """Represents a job for analyzing the set of included scripts in an HTML file."""
     content_hash: str
     end_url: str
-    sources_filter: Callable[[set[str]], set[str]]
 
 
 def setup_metadata_table() -> None:
@@ -66,11 +66,13 @@ def archive_sources_filter(sources: set[str]) -> set[str]:
 def worker(jobs: list[AnalysisJob]) -> None:
     """Extract all hosts/sites included in the given HTML document."""
     with get_database_cursor(autocommit=True) as cursor:
-        for content_hash, end_url, sources_filter in jobs:
+        for content_hash, end_url in jobs:
             with gzip.open(STORAGE.joinpath(content_hash[0], content_hash[1], f"{content_hash}.gz")) as file:
                 soup = BeautifulSoup(file.read(), 'html5lib')
 
             sources = {urljoin(end_url, script_element.get('src')) for script_element in soup.select('script[src]')}
+
+            sources_filter = archive_sources_filter if re.match(WAYBACK_API_REGEX, end_url) else live_sources_filter
             relevant_sources = sources_filter(sources)
 
             hosts = {parse_hostname(source) for source in relevant_sources}
@@ -90,8 +92,7 @@ def worker(jobs: list[AnalysisJob]) -> None:
                   Json(sorted(sites)), Json(sorted(disconnect_trackers)), Json(sorted(easyprivacy_trackers))))
 
 
-def prepare_jobs(table_name: str,
-                 sources_filter: Callable[[set[str]], set[str]] = archive_sources_filter) -> list[AnalysisJob]:
+def prepare_jobs(table_name: str) -> list[AnalysisJob]:
     """Generate AnalysisJob list for all missing content_hashes in `table_name`."""
     with get_database_cursor(autocommit=True) as cursor:
         cursor.execute(f"""
@@ -101,7 +102,7 @@ def prepare_jobs(table_name: str,
             WHERE t.content_hash IS NOT NULL AND m.content_hash IS NULL
         """)
 
-        return [AnalysisJob(*data, sources_filter=sources_filter) for data in cursor.fetchall()]
+        return [AnalysisJob(*data) for data in cursor.fetchall()]
 
 
 def run_jobs(jobs: list[AnalysisJob]) -> None:
@@ -115,7 +116,7 @@ def main():
 
     # Prepare and execute the analysis jobs
     jobs = [
-        *prepare_jobs(LIVE_TABLE_NAME, live_sources_filter),
+        *prepare_jobs(LIVE_TABLE_NAME),
         *prepare_jobs(ARCHIVE_TABLE_NAME),
         *prepare_jobs(NEIGHBORHOODS_TABLE_NAME)
     ]
